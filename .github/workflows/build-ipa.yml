@@ -20,7 +20,8 @@ jobs:
         run: |
           set -euo pipefail
           RUNTIME="Frameworks/UnityRuntime.framework/UnityRuntime"
-          cat "${RUNTIME}.part"* > "$RUNTIME"
+          PARTS="RuntimeParts/UnityRuntime"
+          cat "${PARTS}.part"* > "$RUNTIME"
           chmod +x "$RUNTIME"
           ls -lh "$RUNTIME"
 
