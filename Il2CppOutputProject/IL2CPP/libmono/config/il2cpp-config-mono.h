@@ -4,6 +4,10 @@
 
 #define MONO_CONFIG_H_WAS_INCLUDED
 
+#if MONO_NET8_BCL
+#define ENABLE_NETCORE 1
+#endif
+
 //If we're building for a windows platform, check that we're not building on xp or earlier
 #if IL2CPP_TARGET_WINDOWS
 #include "il2cpp-config-mono-win.h"
@@ -13,12 +17,12 @@
 #include "il2cpp-config-mono-osx.h"
 #elif IL2CPP_TARGET_LINUX
 #include "il2cpp-config-mono-linux.h"
-#elif IL2CPP_TARGET_QNX
-#include "il2cpp-config-mono-qnx.h"
 #elif IL2CPP_TARGET_ANDROID
 #include "il2cpp-config-mono-android.h"
 #elif IL2CPP_TARGET_JAVASCRIPT
 #include "il2cpp-config-mono-web.h"
+#elif IL2CPP_USE_PLATFORM_CONFIG
+#include "il2cpp-config-mono-platform.h"
 #else
 //Uncomment out after all platforms defines moved to header file
 //#error "Mono Code Compiled on Unimplemented Platform"

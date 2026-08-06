@@ -8,11 +8,7 @@
 struct Il2CppClass;
 struct MethodInfo;
 struct Il2CppAssembly;
-struct Il2CppDelegate;
 struct Il2CppImage;
-struct Il2CppType;
-struct Il2CppGenericContext;
-struct Il2CppGenericContainer;
 struct Il2CppReflectionAssembly;
 struct Il2CppArray;
 class AssemblyVector;
@@ -72,6 +68,7 @@ namespace vm
         static void CacheResourceData(EmbeddedResourceRecord record, void* data);
         static void* GetCachedResourceData(const Il2CppImage* image, const std::string& name);
         static void ClearCachedResourceData();
+        static void ClearImageCachedData(Il2CppImage* image);
         static void InitNestedTypes(const Il2CppImage *image);
     };
 } /* namespace vm */

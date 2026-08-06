@@ -5,6 +5,10 @@
 #include "CMVideoSampling.h"
 #include "CVTextureCache.h"
 
+#if UNITY_XCODE_PROJECT_TYPE_SWIFT
+#include "UnityFramework/UnityCoreInterface.h"
+#endif
+
 #import <CoreVideo/CoreVideo.h>
 
 #include <cmath>
@@ -17,8 +21,10 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
     AVCaptureSession*           _captureSession;
     AVCaptureDeviceInput*       _captureInput;
     AVCaptureVideoDataOutput*   _captureOutput;
+#if !PLATFORM_VISIONOS
     AVCaptureDepthDataOutput*   _captureDepthOutput;
     AVCaptureDataOutputSynchronizer*    _captureSynchronizer;
+#endif
 
     @public bool                _isDepth;
 
@@ -26,7 +32,9 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
     CMVideoSampling             _cmVideoSampling;
     NSString*                   _preset;
     CGPoint                     _focusPoint;
+#if !PLATFORM_VISIONOS
     AVCaptureFocusMode          _focusMode;
+#endif
     @public void*               _userData;
     @public size_t              _width, _height;
 }
@@ -38,7 +46,11 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
 
     self.captureDevice = device;
 
+#if PLATFORM_VISIONOS
+    self.captureInput   = [[AVCaptureDeviceInput alloc] initWithDevice: device error:nil];
+#else
     self.captureInput   = [AVCaptureDeviceInput deviceInputWithDevice: device error: nil];
+#endif
     self.captureOutput  = [[AVCaptureVideoDataOutput alloc] init];
 
     if (self.captureOutput == nil || self.captureInput == nil)
@@ -52,7 +64,9 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
 
     _width = _height = 0;
     _focusPoint = CGPointMake(0.5, 0.5); // default focus point is center
+#if !PLATFORM_VISIONOS
     _focusMode = AVCaptureFocusModeContinuousAutoFocus;
+#endif
     _pixelBufferCopy = nullptr;
 
     return true;
@@ -70,11 +84,13 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
         }
         else
         {
+#if !PLATFORM_VISIONOS
             // In some corner cases (seeing this on iPod iOS 6.1.5) activeFormat is null.
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wdeprecated-declarations"
             self.captureOutput.minFrameDuration = CMTimeMake(1, fps);
         #pragma clang diagnostic pop
+#endif
         }
         [self.captureDevice unlockForConfiguration];
     }
@@ -86,14 +102,22 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
         return false;
 
     self.captureSession = [[AVCaptureSession alloc] init];
-    [self.captureSession addInput: self.captureInput];
-    [self.captureSession addOutput: self.captureOutput];
+    if ([self.captureSession canAddInput: self.captureInput])
+        [self.captureSession addInput: self.captureInput];
+    else
+        return false;
+    if ([self.captureSession canAddOutput: self.captureOutput])
+        [self.captureSession addOutput: self.captureOutput];
+    else
+        return false;
 
     // queue on main thread to simplify gles life
     [self.captureOutput setSampleBufferDelegate: self queue: dispatch_get_main_queue()];
 
     self->_preset = preset;
+#if !PLATFORM_VISIONOS
     [self.captureSession setSessionPreset: preset];
+#endif
     [self setCaptureFPS: fps];
 
     return true;
@@ -152,13 +176,16 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
     return IsCVTextureFlipped(self->_cmVideoSampling.cvTextureCacheTexture);
 }
 
+#if !PLATFORM_VISIONOS
 + (BOOL)focusPointSupported:(AVCaptureDevice*)captureDevice withFocusMode:(AVCaptureFocusMode)focusMode
 {
     return captureDevice.focusPointOfInterestSupported && [captureDevice isFocusModeSupported: focusMode];
 }
+#endif
 
 - (int)setFocusPointWithX:(float)x Y:(float)y
 {
+#if !PLATFORM_VISIONOS
     if (x < 0 || x > 1 || y < 0 || y > 1)
     {
         _focusPoint = CGPointMake(0.5, 0.5); // default value for iOS
@@ -169,11 +196,13 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
         _focusPoint = CGPointMake(x, 1.0 - y);
         _focusMode = AVCaptureFocusModeAutoFocus;
     }
+#endif
     return [self setFocusPoint];
 }
 
 - (int)setFocusPoint
 {
+#if !PLATFORM_VISIONOS
     if (self.captureDevice != nil && [CameraCaptureController focusPointSupported: self.captureDevice withFocusMode: _focusMode])
     {
         if ([self.captureDevice lockForConfiguration: nil])
@@ -184,6 +213,7 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
             return 1;
         }
     }
+#endif
     return 0;
 }
 
@@ -216,8 +246,15 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
     CameraCaptureController* otherController = [self findColorAndDepthCameraController: controller.captureDevice isDepth: !controller->_isDepth];
     if (otherController != nil)
     {
-        [otherController initColorAndDepthCameraCaptureSession];
-        [otherController.captureSession startRunning];
+        if (otherController.captureSession == nil)
+            [otherController initColorAndDepthCameraCaptureSession];
+        
+        if (!otherController.captureSession.running)
+        {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+                [otherController.captureSession startRunning];
+            });
+        }
     }
 }
 
@@ -250,19 +287,24 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
     if (![self initCapture: device])
         return false;
 
+#if !PLATFORM_VISIONOS
     self.captureDepthOutput  = [[AVCaptureDepthDataOutput alloc] init];
     if (self.captureDepthOutput == nil)
         return false;
     self.captureDepthOutput.filteringEnabled = YES; // getting filtered depth data to avoid invalid values
     self.captureDepthOutput.alwaysDiscardsLateDepthData = YES;
+#endif
     self->_preset = preset;
     [self initColorAndDepthCameraCaptureSession];
     [self setCaptureFPS: fps];
+
+#if !PLATFORM_VISIONOS
     NSArray<AVCaptureOutput*> *outputs = [NSArray arrayWithObjects: self.captureOutput, self.captureDepthOutput, nil];
     self.captureSynchronizer = [[AVCaptureDataOutputSynchronizer alloc] initWithDataOutputs: outputs];
 
     // queue on main thread to simplify gles life
     [self.captureSynchronizer setDelegate: self queue: dispatch_get_main_queue()];
+#endif
 
     _isDepth = isDepth;
 
@@ -272,20 +314,27 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
 - (void)initColorAndDepthCameraCaptureSession
 {
     self.captureSession = [[AVCaptureSession alloc] init];
+#if !PLATFORM_VISIONOS
     [self.captureSession setSessionPreset: self->_preset];
+#endif
     [self.captureSession addInput: self.captureInput];
     [self.captureSession addOutput: self.captureOutput];
+#if !PLATFORM_VISIONOS
     [self.captureSession addOutput: self.captureDepthOutput];
+#endif
 }
 
 - (void)clearColorAndDepthCameraCaptureSession
 {
     [self.captureSession removeInput: self.captureInput];
     [self.captureSession removeOutput: self.captureOutput];
+#if !PLATFORM_VISIONOS
     [self.captureSession removeOutput: self.captureDepthOutput];
+#endif
     self.captureSession = nil;
 }
 
+#if !PLATFORM_VISIONOS
 - (void)dataOutputSynchronizer:(AVCaptureDataOutputSynchronizer *)synchronizer didOutputSynchronizedDataCollection:(AVCaptureSynchronizedDataCollection *)synchronizedDataCollection
 {
     AVCaptureSynchronizedSampleBufferData *sampleData = (AVCaptureSynchronizedSampleBufferData*)[synchronizedDataCollection synchronizedDataForCaptureOutput: self.captureOutput];
@@ -311,24 +360,31 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
         }
     }
 }
+#endif
 
 - (void)start
 {
+#if !PLATFORM_VISIONOS
     if (self.captureDepthOutput != nil)
     {
         [CameraCaptureController addColorAndDepthCameraController: self];
     }
     else
+#endif
     {
         [CameraCaptureController clearColorAndDepthCameraControllers];
     }
-    [self.captureSession startRunning];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+        [self.captureSession startRunning];
+    });
 }
 
 - (void)pause
 {
     [self.captureSession stopRunning];
+#if !PLATFORM_VISIONOS
     if (self.captureDepthOutput != nil)
+#endif
     {
         [CameraCaptureController removeColorAndDepthCameraController: self];
     }
@@ -343,6 +399,7 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
     self.captureInput = nil;
     self.captureOutput = nil;
 
+#if !PLATFORM_VISIONOS
     if (self.captureDepthOutput != nil)
     {
         self.captureSynchronizer = nil;
@@ -350,6 +407,9 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
         self.captureDepthOutput = nil;
         [CameraCaptureController removeColorAndDepthCameraController: self];
     }
+#else
+    [CameraCaptureController removeColorAndDepthCameraController: self];
+#endif
 
     self.captureDevice = nil;
     self.captureSession = nil;
@@ -391,13 +451,17 @@ static NSMutableArray<CameraCaptureController*> *activeColorAndDepthCameraContro
 @synthesize captureSession  = _captureSession;
 @synthesize captureOutput   = _captureOutput;
 @synthesize captureInput    = _captureInput;
+#if !PLATFORM_VISIONOS
 @synthesize captureDepthOutput = _captureDepthOutput;
 @synthesize captureSynchronizer = _captureSynchronizer;
+#endif
 
 @end
 
+#if !PLATFORM_VISIONOS
 // Preset for getting depth data with max resolution available
 static NSString* const depthCaptureSessionPreset = AVCaptureSessionPresetPhoto;
+#endif
 static NSMutableArray<CameraCaptureDevice*> *videoCaptureDevices = nil;
 
 @implementation CameraCaptureDevice
@@ -412,64 +476,59 @@ static NSMutableArray<CameraCaptureDevice*> *videoCaptureDevices = nil;
 
 - (bool)isColorAndDepthCaptureDevice
 {
+#if !PLATFORM_VISIONOS
     for (AVCaptureDeviceFormat *format in [self->_device formats])
     {
         if ([format supportedDepthDataFormats].count > 0)
             return true;
     }
+#endif
     return false;
 }
 
 - (WebCamKind)getKind
 {
-    if ([self isColorAndDepthCaptureDevice])
-        return kWebCamColorAndDepth;
+#if !PLATFORM_VISIONOS
     AVCaptureDeviceType type = _device.deviceType;
     if ([type isEqualToString: AVCaptureDeviceTypeBuiltInWideAngleCamera])
         return kWebCamWideAngle;
+    if ([type isEqualToString: AVCaptureDeviceTypeBuiltInUltraWideCamera])
+        return kWebCamUltraWideAngle;
     if ([type isEqualToString: AVCaptureDeviceTypeBuiltInTelephotoCamera])
         return kWebCamTelephoto;
-    if ([type isEqualToString: AVCaptureDeviceTypeBuiltInDualCamera])
-        return kWebCamTelephoto;
-    if (@available(iOS 13, *))
-    {
-        if ([type isEqualToString: AVCaptureDeviceTypeBuiltInUltraWideCamera])
-            return kWebCamUltraWideAngle;
-        if ([type isEqualToString: AVCaptureDeviceTypeBuiltInDualWideCamera])
-            return kWebCamWideAngle;
-        if ([type isEqualToString: AVCaptureDeviceTypeBuiltInTripleCamera])
-            return kWebCamUltraWideAngle;
-    }
-    else
-    {
-        // Only works if device language is English; this was original impl, keeping to not regress
-        if ([self->_device.localizedName containsString: @"Ultra Wide"])
-            return kWebCamUltraWideAngle;
-    }
+    if ([type isEqualToString: AVCaptureDeviceTypeBuiltInDualCamera] && [self isColorAndDepthCaptureDevice])
+        return kWebCamColorAndDepth;
+    if ([type isEqualToString: AVCaptureDeviceTypeBuiltInDualWideCamera])
+        return kWebCamWideAngle;
+    if ([type isEqualToString: AVCaptureDeviceTypeBuiltInTripleCamera])
+        return kWebCamUltraWideAngle;
 #if defined(__IPHONE_17_0) || defined(__TVOS_17_0)
     if (@available(iOS 17.0, *))
     {
+
         if ([type isEqualToString: AVCaptureDeviceTypeContinuityCamera])
             return kWebCamWideAngle;
     }
 #endif
-#if PLATFORM_IOS
-#ifdef __IPHONE_15_4
+#endif
+#if PLATFORM_IOS && defined(__IPHONE_15_4)
     if (@available(iOS 15.4, *))
     {
         if ([type isEqualToString: AVCaptureDeviceTypeBuiltInLiDARDepthCamera])
             return kWebCamColorAndDepth;
     }
-#endif
-    if ([type isEqualToString: AVCaptureDeviceTypeBuiltInTrueDepthCamera])
+    if ([type isEqualToString: AVCaptureDeviceTypeBuiltInTrueDepthCamera] && [self isColorAndDepthCaptureDevice])
         return kWebCamColorAndDepth;
 #endif
 
-    return kWebCamWideAngle;
+    return kWebCamUnknown;
 }
 
 - (void)fillCaptureDeviceResolutions
 {
+#if PLATFORM_VISIONOS
+    const int count = 0;
+#else
     static NSString* preset[] =
     {
         AVCaptureSessionPresetLow, // usually 192x144
@@ -481,18 +540,24 @@ static NSMutableArray<CameraCaptureDevice*> *videoCaptureDevices = nil;
         AVCaptureSessionPreset3840x2160,
     };
     const int count = sizeof(preset) / sizeof(preset[0]);
+#endif
 
     self->_resolutions = [NSMutableArray arrayWithCapacity: count];
     self->_resPresets = [NSMutableArray arrayWithCapacity: count];
+#if PLATFORM_VISIONOS
+    AVCaptureInput* captureInput = [[AVCaptureDeviceInput alloc] initWithDevice: self->_device error: nil];
+#else
     AVCaptureInput* captureInput = [AVCaptureDeviceInput deviceInputWithDevice: self->_device error: nil];
+#endif
 
     //Don't attempt to setup an AVCaptureSession if the user has explicitly denied permission to use the camera.
     if (captureInput != nil)
     {
         AVCaptureSession* captureSession = [[AVCaptureSession alloc] init];
+        if ([captureSession canAddInput: captureInput])
+            [captureSession addInput: captureInput];
 
-        [captureSession addInput: captureInput];
-
+#if !PLATFORM_VISIONOS
         if (self->_kind == kWebCamColorAndDepth)
         {
             AVCaptureDepthDataOutput* captureDepthOutput = [[AVCaptureDepthDataOutput alloc] init];
@@ -518,15 +583,18 @@ static NSMutableArray<CameraCaptureDevice*> *videoCaptureDevices = nil;
                 }
             }
         }
+#endif
     }
 }
 
 - (NSString*)pickPresetFromWidth:(int)w height:(int)h
 {
+#if !PLATFORM_VISIONOS
     if (self->_kind == kWebCamColorAndDepth)
     {
         return depthCaptureSessionPreset;
     }
+#endif
 
     int requestedWidth = w > 0 ? w : 640;
     int requestedHeight = h > 0 ? h : 480;
@@ -546,15 +614,23 @@ static NSMutableArray<CameraCaptureDevice*> *videoCaptureDevices = nil;
         }
     }
 
+#if PLATFORM_VISIONOS
+    return nil;
+#else
     NSAssert(ret != -1, @"Cannot pick capture preset");
     return ret != -1 ? self->_resPresets[ret] : AVCaptureSessionPresetHigh;
+#endif
 }
 
 - (CameraCaptureDevice*)initWithDevice:(AVCaptureDevice*)device
 {
     self->_device = device;
     self->_frontFacing = device.position == AVCaptureDevicePositionFront ? 1 : 0;
+#if PLATFORM_VISIONOS
+    self->_autoFocusPointSupported = 0;
+#else
     self->_autoFocusPointSupported = [CameraCaptureController focusPointSupported: device withFocusMode: AVCaptureFocusModeAutoFocus] ? 1 : 0;
+#endif
     self->_kind = [self getKind];
     [self fillCaptureDeviceResolutions];
     return self;
@@ -584,7 +660,7 @@ static NSMutableArray<CameraCaptureDevice*> *videoCaptureDevices = nil;
 
 + (void)createCameraCaptureDevicesArray
 {
-    videoCaptureDevices = [NSMutableArray arrayWithCapacity: 2];
+    videoCaptureDevices = [NSMutableArray arrayWithCapacity: 8];
 }
 
 + (void)addCameraCaptureDevice:(AVCaptureDevice*)device
@@ -594,30 +670,31 @@ static NSMutableArray<CameraCaptureDevice*> *videoCaptureDevices = nil;
 
 @end
 
-
 extern "C" void UnityEnumVideoCaptureDevices(void* udata, void(*callback)(void* udata, const char* name, int frontFacing, int autoFocusPointSupported, int kind, const int* resolutions, int resCount))
 {
     if (![CameraCaptureDevice initialized])
     {
         [CameraCaptureDevice createCameraCaptureDevicesArray];
 
+#if PLATFORM_VISIONOS
+        AVCaptureDevice* systemPreferredCamera = [AVCaptureDevice systemPreferredCamera];
+        if (systemPreferredCamera != nil)
+            [CameraCaptureDevice addCameraCaptureDevice: systemPreferredCamera];
+#else
         NSMutableArray<AVCaptureDeviceType>* captureDevices = [NSMutableArray arrayWithObjects: AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeBuiltInTelephotoCamera, nil];
 
         [captureDevices addObject: AVCaptureDeviceTypeBuiltInDualCamera];
         [captureDevices addObject: AVCaptureDeviceTypeBuiltInTrueDepthCamera];
-
-        if (UnityiOS130orNewer())
-        {
-            [captureDevices addObject: AVCaptureDeviceTypeBuiltInUltraWideCamera];
-            [captureDevices addObject: AVCaptureDeviceTypeBuiltInDualWideCamera];
-            [captureDevices addObject: AVCaptureDeviceTypeBuiltInTripleCamera];
-        }
+        [captureDevices addObject: AVCaptureDeviceTypeBuiltInUltraWideCamera];
+        [captureDevices addObject: AVCaptureDeviceTypeBuiltInDualWideCamera];
+        [captureDevices addObject: AVCaptureDeviceTypeBuiltInTripleCamera];
 
         AVCaptureDeviceDiscoverySession *captureDeviceDiscoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes: captureDevices mediaType: AVMediaTypeVideo position: AVCaptureDevicePositionUnspecified];
         for (AVCaptureDevice* device in [captureDeviceDiscoverySession devices])
         {
             [CameraCaptureDevice addCameraCaptureDevice: device];
         }
+#endif
     }
 
     // we should not provide camera devices information while access has not been granted
@@ -625,17 +702,20 @@ extern "C" void UnityEnumVideoCaptureDevices(void* udata, void(*callback)(void* 
     if ([AVCaptureDevice authorizationStatusForMediaType: AVMediaTypeVideo] != AVAuthorizationStatusAuthorized)
         return;
 
+    const unsigned kMaxResolutions = 16;
+    int resolutions[kMaxResolutions * 2];
     for (CameraCaptureDevice *cameraCaptureDevice in videoCaptureDevices)
     {
         int resCount = (int)[cameraCaptureDevice->_resolutions count];
-        int *resolutions = new int[resCount * 2];
+        assert(resCount <= kMaxResolutions && "Increase the constant above");
         for (int i = 0; i < resCount; ++i)
         {
             resolutions[i * 2] = (int)[cameraCaptureDevice->_resolutions[i] CGSizeValue].width;
             resolutions[i * 2 + 1] = (int)[cameraCaptureDevice->_resolutions[i] CGSizeValue].height;
         }
-        callback(udata, [cameraCaptureDevice->_device.localizedName UTF8String], cameraCaptureDevice->_frontFacing, cameraCaptureDevice->_autoFocusPointSupported, cameraCaptureDevice->_kind, resolutions, resCount);
-        delete[] resolutions;
+        NSString* localizedName = cameraCaptureDevice->_device.localizedName;
+        const char* deviceName = localizedName != nil ? localizedName.UTF8String : "";
+        callback(udata, deviceName, cameraCaptureDevice->_frontFacing, cameraCaptureDevice->_autoFocusPointSupported, cameraCaptureDevice->_kind, resolutions, resCount);
     }
 }
 
@@ -727,7 +807,7 @@ extern "C" int UnityCameraCaptureSetAutoFocusPoint(void* capture, float x, float
 
 #else
 
-// STUBBED OUT UNTIL DEVELOPER FINDs AN AWESOME CAMERA SOLUTION FOR APPLE TV //
+// Stubs for when UNITY_USES_WEBCAM is not defined
 
 extern "C" void UnityEnumVideoCaptureDevices(void* udata, void(*callback)(void* udata, const char* name, int frontFacing, int autoFocusPointSupported, int kind, const int* resolutions, int resCount))
 {

@@ -70,7 +70,7 @@ static bool prefersStatusBarHidden_DefaultImpl(id self_, SEL _cmd)
 {
     if ((self = [super init]))
     {
-        UnityPause(1);
+        UnitySetPlayerPause(kUnityPauseModePause);
 
         showControls    = controls;
         videoGravity    = scaling;
@@ -202,7 +202,7 @@ static bool prefersStatusBarHidden_DefaultImpl(id self_, SEL _cmd)
 #endif
 
         if (UnityIsPaused())
-            UnityPause(0);
+            UnitySetPlayerPause(kUnityPauseModeResume);
     }
 }
 

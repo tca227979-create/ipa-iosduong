@@ -1,6 +1,7 @@
 #include "il2cpp-config.h"
 #include "il2cpp-object-internals.h"
 #include "vm/Monitor.h"
+#include "vm/Exception.h"
 
 #if IL2CPP_SUPPORT_THREADS
 
@@ -8,7 +9,6 @@
 #include "os/Event.h"
 #include "os/Semaphore.h"
 #include "os/Thread.h"
-#include "vm/Exception.h"
 #include "vm/Thread.h"
 
 #include "utils/ThreadSafeFreeList.h"
@@ -98,7 +98,7 @@ struct MonitorData : public il2cpp::utils::ThreadSafeFreeListNode
         /// are at a known sequence point.
         int32_t state;
 
-        static il2cpp::utils::ThreadSafeFreeList<PulseWaitingListNode> s_FreeList;
+        static il2cpp::utils::ThreadSafeFreeList<PulseWaitingListNode>* s_FreeList;
 
         PulseWaitingListNode()
             : nextNode(NULL)
@@ -108,12 +108,12 @@ struct MonitorData : public il2cpp::utils::ThreadSafeFreeListNode
         {
             state = kUnused;
             signalWaitingThread.Reset();
-            s_FreeList.Release(this);
+            s_FreeList->Release(this);
         }
 
         static PulseWaitingListNode* Allocate()
         {
-            PulseWaitingListNode* node = s_FreeList.Allocate();
+            PulseWaitingListNode* node = s_FreeList->Allocate();
             IL2CPP_ASSERT(node->state == kUnused);
             return node;
         }
@@ -123,7 +123,7 @@ struct MonitorData : public il2cpp::utils::ThreadSafeFreeListNode
     /// NOTE: This field may be modified concurrently by several threads (no lock).
     PulseWaitingListNode* threadsWaitingForPulse;
 
-    static il2cpp::utils::ThreadSafeFreeList<MonitorData> s_FreeList;
+    static il2cpp::utils::ThreadSafeFreeList<MonitorData>* s_FreeList;
 
     MonitorData()
         : owningThreadId(kHasBeenReturnedToFreeList)
@@ -272,8 +272,8 @@ struct MonitorData : public il2cpp::utils::ThreadSafeFreeListNode
     }
 };
 
-il2cpp::utils::ThreadSafeFreeList<MonitorData> MonitorData::s_FreeList;
-il2cpp::utils::ThreadSafeFreeList<MonitorData::PulseWaitingListNode> MonitorData::PulseWaitingListNode::s_FreeList;
+il2cpp::utils::ThreadSafeFreeList<MonitorData>* MonitorData::s_FreeList;
+il2cpp::utils::ThreadSafeFreeList<MonitorData::PulseWaitingListNode>* MonitorData::PulseWaitingListNode::s_FreeList;
 
 static MonitorData* GetMonitorAndThrowIfNotLockedByCurrentThread(Il2CppObject* obj)
 {
@@ -301,6 +301,21 @@ namespace il2cpp
 {
 namespace vm
 {
+    void Monitor::AllocateStaticData()
+    {
+        MonitorData::s_FreeList = new il2cpp::utils::ThreadSafeFreeList<MonitorData>;
+        MonitorData::PulseWaitingListNode::s_FreeList = new il2cpp::utils::ThreadSafeFreeList<MonitorData::PulseWaitingListNode>;
+    }
+
+    void Monitor::FreeStaticData()
+    {
+        delete MonitorData::s_FreeList;
+        MonitorData::s_FreeList = nullptr;
+
+        delete MonitorData::PulseWaitingListNode::s_FreeList;
+        MonitorData::PulseWaitingListNode::s_FreeList = nullptr;
+    }
+
     void Monitor::Enter(Il2CppObject* object)
     {
         TryEnter(object, std::numeric_limits<uint32_t>::max());
@@ -316,7 +331,7 @@ namespace vm
             if (!installedMonitor)
             {
                 // Set up a new monitor.
-                MonitorData* newlyAllocatedMonitorForThisThread = MonitorData::s_FreeList.Allocate();
+                MonitorData* newlyAllocatedMonitorForThisThread = MonitorData::s_FreeList->Allocate();
                 il2cpp::os::Thread::ThreadId previousOwnerThreadId = newlyAllocatedMonitorForThisThread->owningThreadId.exchange(currentThreadId);
                 IL2CPP_ASSERT(previousOwnerThreadId == MonitorData::kHasBeenReturnedToFreeList && "Monitor on freelist cannot be owned by thread!");
 
@@ -334,7 +349,7 @@ namespace vm
                 {
                     // Some other thread raced us and won. Retry.
                     newlyAllocatedMonitorForThisThread->owningThreadId = MonitorData::kHasBeenReturnedToFreeList;
-                    MonitorData::s_FreeList.Release(newlyAllocatedMonitorForThisThread);
+                    MonitorData::s_FreeList->Release(newlyAllocatedMonitorForThisThread);
                     continue;
                 }
             }
@@ -426,7 +441,7 @@ namespace vm
                         waitStatus = installedMonitor->semaphore.Wait(true);
                     }
                 }
-                catch (Thread::NativeThreadAbortException&)
+                catch (Il2CppNativeThreadAbortException&)
                 {
                     // This signals that the monitor was not entered properly by this thread. Therefore
                     // a later call to Exit on this monitor should not actually try to exit the monitor,
@@ -567,7 +582,7 @@ namespace vm
             // Release monitor back to free list.
             IL2CPP_ASSERT(monitor->owningThreadId == il2cpp::os::Thread::CurrentThreadId());
             monitor->owningThreadId = MonitorData::kHasBeenReturnedToFreeList;
-            MonitorData::s_FreeList.Release(monitor);
+            MonitorData::s_FreeList->Release(monitor);
         }
     }
 
@@ -710,4 +725,29 @@ namespace vm
 } /* namespace il2cpp */
 
 
-#endif // IL2CPP_SUPPORT_THREADS
+#else // IL2CPP_SUPPORT_THREADS
+
+namespace il2cpp
+{
+namespace vm
+{
+    void Monitor::Enter(Il2CppObject* object)
+    {
+        uintptr_t lockCount = reinterpret_cast<uintptr_t>(object->monitor);
+        lockCount++;
+        object->monitor = reinterpret_cast<MonitorData*>(lockCount);
+    }
+
+    void Monitor::Exit(Il2CppObject* object)
+    {
+        if (!object->monitor)
+            il2cpp::vm::Exception::Raise(il2cpp::vm::Exception::GetSynchronizationLockException("Object is not locked."));
+        uintptr_t lockCount = reinterpret_cast<uintptr_t>(object->monitor);
+        lockCount--;
+        object->monitor = reinterpret_cast<MonitorData*>(lockCount);
+    }
+} /* namespace vm */
+} /* namespace il2cpp */
+
+
+#endif

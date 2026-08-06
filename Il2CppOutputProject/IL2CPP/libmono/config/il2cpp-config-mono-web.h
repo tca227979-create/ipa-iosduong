@@ -197,7 +197,9 @@
 #define HAVE_SYS_STAT_H 1
 #define HAVE_SYS_STATVFS_H 1
 #define HAVE_SYS_SYSCALL_H 1
-#define HAVE_SYS_SYSCTL_H 1
+// Do not define HAVE_SYS_SYSCTL_H as zero, since there is code that uses
+// #ifdef HAVE_SYS_SYSCTL_H to check support for HAVE_SYS_SYSCTL_H.
+//#define HAVE_SYS_SYSCTL_H 0
 #define HAVE_SYS_TIME_H 1
 #define HAVE_SYS_TYPES_H 1
 #define HAVE_SYS_UIO_H 1

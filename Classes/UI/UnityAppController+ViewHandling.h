@@ -97,8 +97,9 @@
 // forcibly orient interface
 - (void)orientInterface:(UIInterfaceOrientation)orient;
 
-// check unity requested orientation and applies it
+// checks unity requested orientation and applies it
 - (void)checkOrientationRequest;
+- (void)applyAllowedOrientations:(UnityOrientationOptions)options;
 
 - (void)orientUnity:(UIInterfaceOrientation)orient __deprecated_msg("use orientInterface instead.");
 @end

@@ -1,9 +1,11 @@
 #include "il2cpp-config.h"
 #include "il2cpp-runtime-stats.h"
+#include "gc/GCHandle.h"
 #include "os/Mutex.h"
 #include "vm/Class.h"
 #include "vm/GenericClass.h"
 #include "vm/Image.h"
+#include "vm/Method.h"
 #include "vm/Runtime.h"
 #include "vm/Type.h"
 #include "metadata/GenericMetadata.h"
@@ -212,19 +214,23 @@ namespace metadata
         return maximumDepth + 1;
     }
 
-    const Il2CppGenericMethod* GenericMetadata::Inflate(const Il2CppGenericMethod* genericMethod, const Il2CppGenericContext* context)
+    const Il2CppGenericMethod GenericMetadata::Inflate(const Il2CppGenericMethod& genericMethod, const Il2CppGenericContext* context)
     {
-        const Il2CppGenericInst* classInst = GetInflatedGenericIntance(genericMethod->context.class_inst, context, true);
-        const Il2CppGenericInst* methodInst = GetInflatedGenericIntance(genericMethod->context.method_inst, context, true);
+        const Il2CppGenericInst* classInst = GetInflatedGenericIntance(genericMethod.context.class_inst, context, true);
+        const Il2CppGenericInst* methodInst = GetInflatedGenericIntance(genericMethod.context.method_inst, context, true);
 
         // We have cases where we could infinitely recurse, inflating generics at runtime. This will lead to a stack overflow.
         // As we do for code generation, let's cut this off at an arbitrary level. If something tries to execute code at this
         // level, a crash will happen. We'll assume that this code won't actually be executed though.
         int maximumRuntimeGenericDepth = GetMaximumRuntimeGenericDepth();
         if (!il2cpp::vm::Runtime::IsLazyRGCTXInflationEnabled() && (RecursiveGenericDepthFor(classInst) > maximumRuntimeGenericDepth || RecursiveGenericDepthFor(methodInst) > maximumRuntimeGenericDepth))
-            return NULL;
+            return { 0 };
 
-        return MetadataCache::GetGenericMethod(genericMethod->methodDefinition, classInst, methodInst);
+        Il2CppGenericMethod gmethod = { 0 };
+        gmethod.methodDefinition = genericMethod.methodDefinition;
+        gmethod.context.class_inst = classInst;
+        gmethod.context.method_inst = methodInst;
+        return gmethod;
     }
 
     const Il2CppGenericInst* GenericMetadata::GetInflatedGenericIntance(const Il2CppGenericInst* inst, const Il2CppGenericContext* context, bool inflateMethodVars)
@@ -248,9 +254,10 @@ namespace metadata
         ConstrainedCallsToGenericInterfaceMethodsOnStructsAreNotSupported();
     }
 
-    Il2CppRGCTXData* GenericMetadata::InflateRGCTXLocked(const Il2CppImage* image, uint32_t token, const Il2CppGenericContext* context, const FastAutoLock& lock)
+    Il2CppRGCTXData* GenericMetadata::InflateRGCTXLocked(const Il2CppImage* image, uint32_t token, const Il2CppGenericContext* context, const FastAutoLock& lock, Il2CppException** exc)
     {
         // This method assumes that it has the g_MetadataLock
+        *exc = NULL;
 
         RGCTXCollection collection = MetadataCache::GetRGCTXs(image, token);
         if (collection.count == 0)
@@ -266,9 +273,16 @@ namespace metadata
                     dataValues[rgctxIndex].type = GenericMetadata::InflateIfNeeded(MetadataCache::GetTypeFromRgctxDefinition(definitionData), context, true);
                     break;
                 case IL2CPP_RGCTX_DATA_CLASS:
-                    dataValues[rgctxIndex].klass = Class::FromIl2CppType(GenericMetadata::InflateIfNeeded(MetadataCache::GetTypeFromRgctxDefinition(definitionData), context, true));
-                    Class::InitSizeAndFieldLayoutLocked(dataValues[rgctxIndex].klass, lock);
+                {
+                    Il2CppClass* klass = Class::FromIl2CppType(GenericMetadata::InflateIfNeeded(MetadataCache::GetTypeFromRgctxDefinition(definitionData), context, true));
+                    Class::InitSizeAndFieldLayoutLocked(klass, lock);
+
+                    if (klass->initializationExceptionGCHandle)
+                        *exc = (Il2CppException*)gc::GCHandle::GetTarget(klass->initializationExceptionGCHandle);
+
+                    dataValues[rgctxIndex].klass = klass;
                     break;
+                }
                 case IL2CPP_RGCTX_DATA_METHOD:
                     dataValues[rgctxIndex].method = GenericMethod::GetMethod(Inflate(MetadataCache::GetGenericMethodFromRgctxDefinition(definitionData), context));
                     break;
@@ -280,9 +294,9 @@ namespace metadata
 
                     const Il2CppType* inflatedType = GenericMetadata::InflateIfNeeded(type, context, true);
                     if (method->is_inflated)
-                        method = GenericMethod::GetMethod(Inflate(method->genericMethod, context));
+                        method = GenericMethod::GetMethod(Inflate(*method->genericMethod, context));
 
-                    if (inflatedType->valuetype)
+                    if (inflatedType->valuetype || vm::Method::IsStatic(method))
                     {
                         Il2CppClass* inflatedClass = Class::FromIl2CppType(inflatedType);
                         Class::InitLocked(inflatedClass, lock);
@@ -376,6 +390,16 @@ namespace metadata
             if ((*it).key->cached_class != NULL)
                 callback((*it).key->cached_class, context);
         }
+    }
+
+    void GenericMetadata::AcquireMetadataLocks()
+    {
+        s_GenericClassMutex.Acquire();
+    }
+
+    void GenericMetadata::ReleaseMetadataLocks()
+    {
+        s_GenericClassMutex.Release();
     }
 
     void GenericMetadata::Clear()

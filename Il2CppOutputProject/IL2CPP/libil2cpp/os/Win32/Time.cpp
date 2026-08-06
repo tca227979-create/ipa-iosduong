@@ -4,7 +4,6 @@
 
 #include "os/Time.h"
 #include "os/Win32/WindowsHeaders.h"
-#include "utils/MathUtils.h"
 
 #define MTICKS_PER_SEC 10000000LL
 
@@ -13,6 +12,7 @@ namespace il2cpp
 namespace os
 {
     static LARGE_INTEGER s_PerformanceCounterFrequency;
+    static double s_MTicksPerQfcFreq;
 
     static inline void InitializePerformanceCounterFrequency()
     {
@@ -23,16 +23,18 @@ namespace os
 
             BOOL qpfResult = QueryPerformanceFrequency(&s_PerformanceCounterFrequency);
             IL2CPP_ASSERT(qpfResult != FALSE);
+
+            s_MTicksPerQfcFreq = (double)MTICKS_PER_SEC / s_PerformanceCounterFrequency.QuadPart;
         }
     }
 
-    uint32_t Time::GetTicksMillisecondsMonotonic()
+    int64_t Time::GetTicksMillisecondsMonotonic()
     {
         InitializePerformanceCounterFrequency();
 
         LARGE_INTEGER value;
         QueryPerformanceCounter(&value);
-        return static_cast<uint32_t>(value.QuadPart * 1000 / s_PerformanceCounterFrequency.QuadPart);
+        return value.QuadPart * 1000 / s_PerformanceCounterFrequency.QuadPart;
     }
 
     int64_t Time::GetTicks100NanosecondsMonotonic()
@@ -41,7 +43,7 @@ namespace os
 
         LARGE_INTEGER value;
         QueryPerformanceCounter(&value);
-        return utils::MathUtils::A_Times_B_DividedBy_C(value.QuadPart, MTICKS_PER_SEC, s_PerformanceCounterFrequency.QuadPart);
+        return (int64_t)(value.QuadPart * s_MTicksPerQfcFreq);
     }
 
 /*

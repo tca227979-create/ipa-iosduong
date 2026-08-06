@@ -1,6 +1,6 @@
 #pragma once
 
-#if (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32) && !RUNTIME_TINY
+#if (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32)
 
 #include <stdint.h>
 #include <limits.h>
@@ -89,9 +89,9 @@ namespace os
 
         bool HaveWaitingThreads() const { return (m_WaitingThreadCount != 0); }
 
-        void WakeupOneThread() { WakeupThreads(true); }
-        void WakeupAllThreads() { WakeupThreads(false); }
-        void WakeupThreads(bool wakeupOneThread);
+        void WakeupOneThread(bool lifo = false) { WakeupThreads(true, lifo); }
+        void WakeupAllThreads(bool lifo = false) { WakeupThreads(false, lifo); }
+        void WakeupThreads(bool wakeupOneThread, bool lifo = false);
 
         void ConditionWait(ThreadImpl* thread);
         bool ConditionTimedWait(ThreadImpl* thread, uint32_t timeout);
@@ -102,4 +102,4 @@ namespace os
 }
 }
 
-#endif // (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32) && !RUNTIME_TINY
+#endif // (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32)

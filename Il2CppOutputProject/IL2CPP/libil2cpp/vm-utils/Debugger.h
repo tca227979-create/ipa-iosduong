@@ -73,6 +73,7 @@ extern "C"
 #include <stdint.h>
 #include "os/Atomic.h"
 #include "os/ThreadLocalValue.h"
+#include "vm/LastError.h"
 
 #undef IsLoggingEnabled
 
@@ -89,6 +90,9 @@ namespace utils
     class Debugger
     {
     public:
+        static void AllocateStaticData();
+        static void FreeStaticData();
+
         static void RegisterMetadata(const Il2CppDebuggerMetadataRegistration *data);
         static void SetAgentOptions(const char* options);
         static void RegisterTransport(const Il2CppDebuggerTransport* transport);
@@ -98,6 +102,8 @@ namespace utils
 
         static inline Il2CppThreadUnwindState* PushExecutionContext(Il2CppSequencePointExecutionContext* executionContext)
         {
+            vm::LastOsErrorPreserver lastErrorPreserver;
+
             Il2CppThreadUnwindState* unwindState;
             s_ExecutionContexts.GetValue(reinterpret_cast<void**>(&unwindState));
 
@@ -131,6 +137,7 @@ namespace utils
         static void AllocateThreadLocalData();
         static void FreeThreadLocalData();
         static Il2CppSequencePoint* GetSequencePoint(const Il2CppImage* image, size_t id);
+        static Il2CppSequencePoint* GetSequenceFirstSequencePoint(const MethodInfo* method);
         static Il2CppSequencePoint* GetSequencePoints(const MethodInfo* method, void**iter);
         static Il2CppSequencePoint* GetSequencePoint(const Il2CppImage* image, Il2CppCatchPoint* cp);
         static Il2CppCatchPoint* GetCatchPoints(const MethodInfo* method, void**iter);

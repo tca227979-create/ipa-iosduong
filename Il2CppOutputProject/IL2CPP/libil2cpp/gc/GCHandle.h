@@ -16,23 +16,34 @@ namespace gc
         HANDLE_WEAK,
         HANDLE_WEAK_TRACK,
         HANDLE_NORMAL,
-        HANDLE_PINNED
+        HANDLE_PINNED,
+        HANDLE_TYPE_MAX
     };
+
+    const Il2CppGCHandle kEmptyGCHandle = (Il2CppGCHandle)0;
 
     class LIBIL2CPP_CODEGEN_API GCHandle
     {
     public:
         // external
-        static uint32_t New(Il2CppObject *obj, bool pinned);
-        static utils::Expected<uint32_t> NewWeakref(Il2CppObject *obj, bool track_resurrection);
-        static Il2CppObject* GetTarget(uint32_t gchandle);
-        static GCHandleType GetHandleType(uint32_t gcHandle);
-        static void Free(uint32_t gchandle);
+        static Il2CppGCHandle New(Il2CppObject *obj, bool pinned);
+        static utils::Expected<Il2CppGCHandle> NewWeakref(Il2CppObject *obj, bool track_resurrection);
+        static Il2CppObject* GetTarget(Il2CppGCHandle gchandle);
+        static void SetTarget(Il2CppGCHandle gchandle, Il2CppObject* value);
+#if !MONO_NET8_BCL
+        static GCHandleType GetHandleType(Il2CppGCHandle gcHandle);
+#endif
+        static void Free(Il2CppGCHandle gchandle);
     public:
         //internal
-        static utils::Expected<uint32_t> GetTargetHandle(Il2CppObject * obj, int32_t handle, int32_t type);
+#if !MONO_NET8_BCL
+        static utils::Expected<Il2CppGCHandle> GetTargetHandle(Il2CppObject * obj, Il2CppGCHandle handle, int32_t type);
+#endif
         typedef void(*WalkGCHandleTargetsCallback)(Il2CppObject* obj, void* context);
         static void WalkStrongGCHandleTargets(WalkGCHandleTargetsCallback callback, void* context);
+
+        static void AcquireMetadataLocks();
+        static void ReleaseMetadataLocks();
     };
 } /* gc */
 } /* il2cpp */

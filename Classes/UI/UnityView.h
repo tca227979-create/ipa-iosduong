@@ -42,9 +42,11 @@
 @end
 
 @interface UnityView (UnityAppController)
-// if we know that unity view bounds have changed but need to update unity-side size/orientation immediately
-// otherwise the update will be delayed to next layoutSubviews
-- (void)boundsUpdated;
+- (void)boundsUpdated __deprecated_msg("use updateUnityBackbufferSize instead.");
+// if we know that unity view bounds have changed but we need to update unity-side size/orientation immediately
+- (void)updateUnityBackbufferSize;
+// update layer's drawableSize from bounds size: needed when bounds are changed (either by iOS or by us)
+- (void)updateLayerDrawableSizeFromBounds;
 @end
 
 #if PLATFORM_IOS || PLATFORM_VISIONOS
@@ -58,4 +60,3 @@ void ReportSafeAreaChangeForView(UIView* view);
 // Computes safe area for a view in Unity coordinate system (origin of the view
 // is bottom-left, as compared to standard top-left)
 CGRect ComputeSafeArea(UIView* view);
-CGSize GetCutoutToScreenRatio();

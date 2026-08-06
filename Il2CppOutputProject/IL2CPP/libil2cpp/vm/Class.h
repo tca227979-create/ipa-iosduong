@@ -48,6 +48,8 @@ namespace vm
     class LIBIL2CPP_CODEGEN_API Class
     {
     public:
+        static void AllocateStaticData();
+        static void FreeStaticData();
         static Il2CppClass* FromIl2CppType(const Il2CppType* type, bool throwOnError = true);
         static Il2CppClass* FromIl2CppTypeEnum(Il2CppTypeEnum type);
         static Il2CppClass* FromName(const Il2CppImage* image, const char* namespaze, const char *name);
@@ -109,7 +111,7 @@ namespace vm
 
         inline static bool IsInterface(const Il2CppClass* klass)
         {
-            return (klass->flags & TYPE_ATTRIBUTE_INTERFACE) || (klass->byval_arg.type == IL2CPP_TYPE_VAR) || (klass->byval_arg.type == IL2CPP_TYPE_MVAR);
+            return klass->flags & TYPE_ATTRIBUTE_INTERFACE;
         }
 
         inline static bool IsNullable(const Il2CppClass* klass)
@@ -132,9 +134,14 @@ namespace vm
             return &klass->this_arg;
         }
 
-        inline static const Il2CppType* GetType(Il2CppClass* klass)
+        inline static const Il2CppType* GetType(const Il2CppClass* klass)
         {
             return &klass->byval_arg;
+        }
+
+        inline static bool IsArray(const Il2CppClass* klass)
+        {
+            return vm::Type::IsArray(vm::Class::GetType(klass));
         }
 
         static const Il2CppType* GetType(Il2CppClass *klass, const TypeNameParseInfo &info);
@@ -166,31 +173,41 @@ namespace vm
         static Il2CppClass* InflateGenericClass(Il2CppClass* klass, Il2CppGenericContext *context);
         static const Il2CppType* InflateGenericType(const Il2CppType* type, Il2CppGenericContext *context);
 
-        static Il2CppMetadataGenericContainerHandle GetGenericContainer(Il2CppClass *klass);
+        inline static Il2CppMetadataGenericContainerHandle GetGenericContainer(const Il2CppClass* klass)
+        {
+            return klass->genericContainerHandle;
+        }
+
         static const MethodInfo* GetCCtor(Il2CppClass *klass);
         static const char* GetFieldDefaultValue(const FieldInfo *field, const Il2CppType** type);
         static int GetFieldMarshaledSize(const FieldInfo *field);
         static int GetFieldMarshaledAlignment(const FieldInfo *field);
         static Il2CppClass* GetPtrClass(const Il2CppType* type);
         static Il2CppClass* GetPtrClass(Il2CppClass* elementClass);
+        static Il2CppClass* GetPtrElementClass(const Il2CppType* ptrType);
+        static Il2CppClass* GetPtrElementClass(Il2CppClass* ptrClass);
         static bool HasReferences(Il2CppClass *klass);
-        static void SetupEvents(Il2CppClass *klass);
+        static const EventInfo* GetEvents(Il2CppClass *klass);
         static void SetupFields(Il2CppClass *klass);
         static void SetupMethods(Il2CppClass *klass);
-        static void SetupNestedTypes(Il2CppClass *klass);
-        static void SetupProperties(Il2CppClass *klass);
+        static const MethodInfo** GetMethods(Il2CppClass *klass);
+        static Il2CppClass** GetNestedTypes(Il2CppClass *klass);
+        static const PropertyInfo* GetProperties(Il2CppClass *klass);
         static void SetupTypeHierarchy(Il2CppClass *klass);
-        static void SetupInterfaces(Il2CppClass *klass);
+        static Il2CppClass** GetInterfaces(Il2CppClass *klass);
 
+        // Must be called with the GC lock held!
         static const il2cpp::utils::dynamic_array<Il2CppClass*>& GetStaticFieldData();
 
         static size_t GetBitmapSize(const Il2CppClass* klass);
         static void GetBitmap(Il2CppClass* klass, size_t* bitmap, size_t& maxSetBit);
 
-        static const Il2CppType* il2cpp_type_from_type_info(const TypeNameParseInfo& info, TypeSearchFlags searchFlags);
+        static const Il2CppType* il2cpp_type_from_type_info(const TypeNameParseInfo& info, TypeSearchFlags searchFlags, const Il2CppImage* image);
 
         static Il2CppClass* GetDeclaringType(Il2CppClass* klass);
         static const MethodInfo* GetVirtualMethod(Il2CppClass* klass, const MethodInfo* virtualMethod);
+
+        static VTableIndex VTableIndexForMethod(Il2CppClass* klass, const MethodInfo* virtualMethod);
 
         static void SetClassInitializationError(Il2CppClass* klass, Il2CppException* error);
         static void PublishInitialized(Il2CppClass* klass);
@@ -212,51 +229,77 @@ namespace vm
 
             const Il2CppGenericInst* genericInst = genericClass->context.class_inst;
             const Il2CppGenericInst* oGenericInst = oGenericClass->context.class_inst;
-            Il2CppMetadataGenericContainerHandle genericContainer = MetadataCache::GetGenericContainerFromGenericClass(klass->image, klass->generic_class);
+            Il2CppMetadataGenericContainerHandle genericContainer = Class::GetGenericContainer(klass);
+
+            Il2CppClass* genericTypeDefintion = GenericClass::GetTypeDefinition(genericClass);
+            Class::Init(genericTypeDefintion);
+            const uint16_t* genericContainerFlags = genericTypeDefintion->genericParameterFlags->flags;
 
             IL2CPP_ASSERT(oGenericInst->type_argc == genericInst->type_argc);
+            IL2CPP_ASSERT(genericTypeDefintion->genericParameterFlags->count == genericInst->type_argc);
 
-            for (uint32_t i = 0; i < genericInst->type_argc; ++i)
+            const Il2CppType** genericArgs = genericInst->type_argv;
+            const Il2CppType** oGenericArgs = oGenericInst->type_argv;
+
+            uint32_t genericArgCount = genericInst->type_argc;
+            uint32_t i = 0;
+            do
             {
-                uint16_t flags = MetadataCache::GetGenericParameterFlags(MetadataCache::GetGenericParameterFromIndex(genericContainer, i));
-                const int32_t parameterVariance = flags & IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_VARIANCE_MASK;
-                Il2CppClass* genericParameterType = Class::FromIl2CppType(genericInst->type_argv[i]);
-                Il2CppClass* oGenericParameterType = Class::FromIl2CppType(oGenericInst->type_argv[i]);
+                uint16_t flags = genericContainerFlags[i];
+                int32_t parameterVariance = flags & IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_VARIANCE_MASK;
+                Il2CppClass* genericParameterType = Class::FromIl2CppType(genericArgs[i]);
+                Il2CppClass* oGenericParameterType = Class::FromIl2CppType(oGenericArgs[i]);
 
-                if (parameterVariance == IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_NON_VARIANT || Class::IsValuetype(genericParameterType) || Class::IsValuetype(oGenericParameterType))
+                // This is intentionally a bitwise OR - these checks are cheap reads and are independent
+                if (Class::IsValuetype(genericParameterType) | Class::IsValuetype(oGenericParameterType))
+                    parameterVariance = IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_NON_VARIANT;
+
+                switch (parameterVariance)
                 {
-                    if (genericParameterType != oGenericParameterType)
-                    {
-                        if (implementingClass->rank || implementingClass->declaringType == il2cpp_defaults.array_class)
+                    case IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_NON_VARIANT:
+                        if (genericParameterType != oGenericParameterType)
                         {
-                            // For arrays or System.Array/InternalEnumerator<T> we need to follow the array variance rules when looking for an
-                            // generic interface i.e. Int32[] should be assignable to IEnumerable<UInt32>
-                            IL2CPP_ASSERT(implementingClass->rank || strcmp(implementingClass->name, "InternalEnumerator`1") == 0);
+                            if (implementingClass->rank || implementingClass->declaringType == il2cpp_defaults.array_class)
+                            {
+                                // For arrays or System.Array/InternalEnumerator<T> we need to follow the array variance rules when looking for an
+                                // generic interface i.e. Int32[] should be assignable to IEnumerable<UInt32>
+                                IL2CPP_ASSERT(implementingClass->rank || strcmp(implementingClass->name, "InternalEnumerator`1") == 0);
 
-                            if (metadata::ArrayMetadata::GetArrayVarianceReducedType(genericParameterType) != metadata::ArrayMetadata::GetArrayVarianceReducedType(oGenericParameterType))
+                                if (metadata::ArrayMetadata::GetArrayVarianceReducedType(genericParameterType) != metadata::ArrayMetadata::GetArrayVarianceReducedType(oGenericParameterType))
+                                    return false;
+                            }
+                            else
+                            {
                                 return false;
+                            }
                         }
-                        else
-                        {
+                        break;
+                    case IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_COVARIANT:
+                        if (!Class::IsAssignableFrom(genericParameterType, oGenericParameterType))
                             return false;
-                        }
-                    }
-                }
-                else if (parameterVariance == IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_COVARIANT)
-                {
-                    if (!Class::IsAssignableFrom(genericParameterType, oGenericParameterType))
+                        break;
+                    case IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_CONTRAVARIANT:
+                        if (!Class::IsAssignableFrom(oGenericParameterType, genericParameterType))
+                            return false;
+                        break;
+                    default:
+                        IL2CPP_ASSERT(false && "Invalid generic parameter variance");
                         return false;
                 }
-                else
-                {
-                    IL2CPP_ASSERT(parameterVariance == IL2CPP_GENERIC_PARAMETER_ATTRIBUTE_CONTRAVARIANT);
-                    if (!Class::IsAssignableFrom(oGenericParameterType, genericParameterType))
-                        return false;
-                }
+
+                i++;
             }
+            while (i < genericArgCount);
 
             return true;
         }
+
+        static void SetDebugName(Il2CppClass* klass)
+#if IL2CPP_DEBUG
+        ;
+#else
+        {}
+#endif
     };
 } /* namespace vm */
 } /* namespace il2cpp */

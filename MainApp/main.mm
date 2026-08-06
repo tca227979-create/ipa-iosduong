@@ -1,4 +1,4 @@
-#include <UnityFramework/UnityFramework.h>
+#import <UnityFramework/UnityFramework.h>
 
 UnityFramework* UnityFrameworkLoad()
 {
@@ -10,11 +10,6 @@ UnityFramework* UnityFrameworkLoad()
     if ([bundle isLoaded] == false) [bundle load];
 
     UnityFramework* ufw = [bundle.principalClass getInstance];
-    if (![ufw appController])
-    {
-        // unity is not initialized
-        [ufw setExecuteHeader: &_mh_execute_header];
-    }
     return ufw;
 }
 

@@ -12,7 +12,7 @@
 #endif
 
     if (UnityGetAppleTVRemoteTouchesEnabled())
-        UnitySendTouchesBegin(touches, event);
+        UnitySendTouches(UITouchPhaseBegan, touches, event);
 }
 
 - (void)touchesEnded:(NSSet*)touches withEvent:(UIEvent*)event
@@ -22,7 +22,7 @@
 #endif
 
     if (UnityGetAppleTVRemoteTouchesEnabled())
-        UnitySendTouchesEnded(touches, event);
+        UnitySendTouches(UITouchPhaseEnded, touches, event);
 }
 
 - (void)touchesCancelled:(NSSet*)touches withEvent:(UIEvent*)event
@@ -32,7 +32,7 @@
 #endif
 
     if (UnityGetAppleTVRemoteTouchesEnabled())
-        UnitySendTouchesCancelled(touches, event);
+        UnitySendTouches(UITouchPhaseCancelled, touches, event);
 }
 
 - (void)touchesMoved:(NSSet*)touches withEvent:(UIEvent*)event
@@ -42,7 +42,7 @@
 #endif
 
     if (UnityGetAppleTVRemoteTouchesEnabled())
-        UnitySendTouchesMoved(touches, event);
+        UnitySendTouches(UITouchPhaseMoved, touches, event);
 }
 
 #if UNITY_TVOS_SIMULATOR_FAKE_REMOTE

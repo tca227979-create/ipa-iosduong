@@ -58,6 +58,8 @@ const NSTimeInterval REORIENTATION_RENDERING_PAUSE = 0.15;
         NSString* style = [[[NSBundle mainBundle] infoDictionary] objectForKey: @"UIStatusBarStyle"];
         if (style && [style isEqualToString: @"UIStatusBarStyleLightContent"])
             _PreferredStatusBarStyle = UIStatusBarStyleLightContent;
+        if (style && [style isEqualToString: @"UIStatusBarStyleDarkContent"])
+            _PreferredStatusBarStyle = UIStatusBarStyleDarkContent;
 
         _PreferredStatusBarStyleInited = true;
     }
@@ -67,16 +69,7 @@ const NSTimeInterval REORIENTATION_RENDERING_PAUSE = 0.15;
 
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
 {
-    UIRectEdge res = UIRectEdgeNone;
-    if (UnityGetDeferSystemGesturesTopEdge())
-        res |= UIRectEdgeTop;
-    if (UnityGetDeferSystemGesturesBottomEdge())
-        res |= UIRectEdgeBottom;
-    if (UnityGetDeferSystemGesturesLeftEdge())
-        res |= UIRectEdgeLeft;
-    if (UnityGetDeferSystemGesturesRightEdge())
-        res |= UIRectEdgeRight;
-    return res;
+    return UnityGetDeferSystemGesturesOnEdges();
 }
 
 - (BOOL)prefersHomeIndicatorAutoHidden
@@ -87,23 +80,54 @@ const NSTimeInterval REORIENTATION_RENDERING_PAUSE = 0.15;
 @end
 
 @implementation UnityDefaultViewController
+{
+    // these will be updated in one place where we "sync" UI side orientation handling to unity side
+    NSUInteger _supportedOrientations;
 
-// these will be updated in one place where we "sync" UI side orientation handling to unity side
-NSUInteger _supportedOrientations;
+    // this will be updated in one place where we "sync" UI side orientation handling to unity side
+    UIInterfaceOrientation _fixedOrientation;
 
-- (id)init
+    // this indicates if we are asked to handle fixed orientation too - app should decide
+    BOOL _willHandleFixedOrientation;
+}
+
+- (BOOL)willHandleFixedOrientation
+{
+    return _willHandleFixedOrientation;
+}
+
+- (void)readOrientationFromUnity
+{
+    auto options = UnityGetOrientationOptions();
+    if (options.ShouldAutorotate())
+    {
+        _fixedOrientation = UIInterfaceOrientationUnknown;
+        _supportedOrientations = EnabledAutorotationInterfaceOrientations();
+    }
+    else
+    {
+        _fixedOrientation = ConvertToIosScreenOrientation(options.GetScreenOrientation());
+        _supportedOrientations = (1 << _fixedOrientation);
+    }
+}
+
+- (instancetype)initShouldHandleFixedOrientation:(BOOL)shouldHandleFixedOrientation
 {
     if ((self = [super init]))
     {
-        NSAssert(UnityShouldAutorotate(), @"UnityDefaultViewController should be used only if unity is set to autorotate");
-        _supportedOrientations = EnabledAutorotationInterfaceOrientations();
+        _willHandleFixedOrientation = shouldHandleFixedOrientation;
+        NSAssert(UnityGetOrientationOptions().ShouldAutorotate() || _willHandleFixedOrientation,
+            @"UnityDefaultViewController should be used either if unity is set to autorotate, or if asked explicitly to handle fixed orientation");
+
+        [self readOrientationFromUnity];
     }
     return self;
 }
 
 - (void)updateSupportedOrientations
 {
-    _supportedOrientations = EnabledAutorotationInterfaceOrientations();
+    [self readOrientationFromUnity];
+
     if (@available(iOS 16.0, *))
         [self setNeedsUpdateOfSupportedInterfaceOrientations];
 }
@@ -136,8 +160,12 @@ NSUInteger _supportedOrientations;
 
     // delay resolution change, ideally we want it to happen in the middle of rotation animation
     // we force rendering back upon completion, just in case transition happens sooner
-    GetAppController().unityView.skipRendering = YES;
-    [GetAppController().unityView performSelector: @selector(resumeRendering) withObject: nil afterDelay: REORIENTATION_RENDERING_PAUSE];
+    // NOTE: with CAMetalDisplayLink we cannot just skip rendering, hence the if
+    if(!GetAppController().unityUsesMetalDisplayLink)
+    {
+        GetAppController().unityView.skipRendering = YES;
+        [GetAppController().unityView performSelector: @selector(resumeRendering) withObject: nil afterDelay: REORIENTATION_RENDERING_PAUSE];
+    }
 
     // in case of presentation controller it will take control over orientations
     // so to avoid crazy corner cases, make default view controller to ignore "wrong" orientations
@@ -146,7 +174,6 @@ NSUInteger _supportedOrientations;
     NSUInteger targetMask = 1 << ConvertToIosScreenOrientation(newOrient);
     if (([self supportedInterfaceOrientations] & targetMask) != 0)
     {
-        [UIView setAnimationsEnabled: UnityUseAnimatedAutorotation() ? YES : NO];
         [KeyboardDelegate StartReorientation];
 
         [GetAppController() interfaceWillChangeOrientationTo: ConvertToIosScreenOrientation(newOrient)];
@@ -177,7 +204,8 @@ NSUInteger _supportedOrientations;
 - (instancetype)initWithOrientation:(UIInterfaceOrientation)interfaceOrientation
 {
     self = [super init];
-    if (self) {
+    if (self)
+    {
         _fixedOrientation = interfaceOrientation;
     }
     return self;
@@ -208,8 +236,8 @@ NSUInteger _supportedOrientations;
     //
     // NB: Look for additional explanation at UnityAppController+ViewHandling.mm method -transitionToViewController: before
     // call to same method.
-    [GetAppController() didTransitionToViewController:self fromViewController:self];
-    
+    [GetAppController() didTransitionToViewController: self fromViewController: self];
+
     [super viewWillTransitionToSize: size withTransitionCoordinator: coordinator];
 }
 
@@ -219,7 +247,7 @@ NSUInteger _supportedOrientations;
 
 - (instancetype)init
 {
-    self = [super initWithOrientation:UIInterfaceOrientationPortrait];
+    self = [super initWithOrientation: UIInterfaceOrientationPortrait];
     return self;
 }
 
@@ -229,7 +257,7 @@ NSUInteger _supportedOrientations;
 
 - (instancetype)init
 {
-    self = [super initWithOrientation:UIInterfaceOrientationPortraitUpsideDown];
+    self = [super initWithOrientation: UIInterfaceOrientationPortraitUpsideDown];
     return self;
 }
 
@@ -239,7 +267,7 @@ NSUInteger _supportedOrientations;
 
 - (instancetype)init
 {
-    self = [super initWithOrientation:UIInterfaceOrientationLandscapeLeft];
+    self = [super initWithOrientation: UIInterfaceOrientationLandscapeLeft];
     return self;
 }
 
@@ -249,7 +277,7 @@ NSUInteger _supportedOrientations;
 
 - (instancetype)init
 {
-    self = [super initWithOrientation:UIInterfaceOrientationLandscapeRight];
+    self = [super initWithOrientation: UIInterfaceOrientationLandscapeRight];
     return self;
 }
 
@@ -258,16 +286,17 @@ NSUInteger _supportedOrientations;
 NSUInteger EnabledAutorotationInterfaceOrientations()
 {
     NSUInteger ret = 0;
+    auto orientationOptions = UnityGetOrientationOptions();
 
-    if (UnityIsOrientationEnabled(portrait))
+    if (orientationOptions.AreOrientationsEnabled(PortraitMask))
         ret |= (1 << UIInterfaceOrientationPortrait);
-    if (UnityDeviceSupportsUpsideDown() && UnityIsOrientationEnabled(portraitUpsideDown))
+    if (UnityDeviceSupportsUpsideDown() && orientationOptions.AreOrientationsEnabled(PortraitUpsideDownMask))
         ret |= (1 << UIInterfaceOrientationPortraitUpsideDown);
-    if (UnityIsOrientationEnabled(landscapeLeft))
+    if (orientationOptions.AreOrientationsEnabled(LandscapeLeftMask))
         ret |= (1 << UIInterfaceOrientationLandscapeRight);
-    if (UnityIsOrientationEnabled(landscapeRight))
+    if (orientationOptions.AreOrientationsEnabled(LandscapeRightMask))
         ret |= (1 << UIInterfaceOrientationLandscapeLeft);
-    
+
     // Handling unexpected case where autorotation is on and all the orientations are off by defaulting to current orientation.
     // Previously we returned 0 and iOS were handling it by keeping orientation as is. From iOS16 behaviour changed and the bug was raised.
     // Either way iOS requires us to provide non 0 value to supportedInterfaceOrientations.

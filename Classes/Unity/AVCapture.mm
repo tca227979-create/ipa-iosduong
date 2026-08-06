@@ -1,7 +1,11 @@
 #include "AVCapture.h"
 
-#include <AVFoundation/AVFoundation.h>
+#if !UNITY_TRAMPOLINE_IN_USE || UNITY_XCODE_PROJECT_TYPE_SWIFT
+// in trampoline this is declared in UnityInterface.h
+extern "C" void UnityReportAVCapturePermission(void* userData);
+#endif
 
+#include <AVFoundation/AVFoundation.h>
 
 static NSString* MediaTypeFromEnum(int captureType)
 {
@@ -18,7 +22,7 @@ extern "C" int UnityGetAVCapturePermission(int captureType)
     if (mediaType == nil)
         return avCapturePermissionDenied;
 
-#if !PLATFORM_TVOS && (UNITY_USES_WEBCAM || UNITY_USES_MICROPHONE)
+#if PLATFORM_OSX || ((PLATFORM_IOS || PLATFORM_VISIONOS) && (UNITY_USES_WEBCAM || UNITY_USES_MICROPHONE))
     NSInteger status = AVAuthorizationStatusAuthorized;
     status = [AVCaptureDevice authorizationStatusForMediaType: mediaType];
 
@@ -33,7 +37,7 @@ extern "C" int UnityGetAVCapturePermission(int captureType)
 
 extern "C" void UnityRequestAVCapturePermission(int captureType, void* userData)
 {
-#if !PLATFORM_TVOS && (UNITY_USES_WEBCAM || UNITY_USES_MICROPHONE)
+#if PLATFORM_OSX || ((PLATFORM_IOS || PLATFORM_VISIONOS) && (UNITY_USES_WEBCAM || UNITY_USES_MICROPHONE))
     NSString* mediaType = MediaTypeFromEnum(captureType);
     if (mediaType == nil)
         return;

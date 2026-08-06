@@ -3,7 +3,9 @@
 #include "CVTextureCache.h"
 #include <AVFoundation/AVFoundation.h>
 
-#include "DisplayManager.h" // for GetMainDisplaySurface() to have proper linear/srgb handling
+#if UNITY_XCODE_PROJECT_TYPE_SWIFT
+#import "UnityCoreInterface.h"
+#endif
 
 void CMVideoSampling_Initialize(CMVideoSampling* sampling)
 {
@@ -51,7 +53,7 @@ intptr_t CMVideoSampling_ImageBuffer(CMVideoSampling* sampling, CVImageBufferRef
     OSType pixelFormat = CVPixelBufferGetPixelFormatType(buffer);
     if (pixelFormat == kCVPixelFormatType_32BGRA || pixelFormat == kCVPixelFormatType_DepthFloat16)
     {
-        MTLPixelFormat metalFormat32BGRA = GetMainDisplaySurface()->srgb ? MTLPixelFormatBGRA8Unorm_sRGB : MTLPixelFormatBGRA8Unorm;
+        MTLPixelFormat metalFormat32BGRA = UnityGetSRGBRequested() ? MTLPixelFormatBGRA8Unorm_sRGB : MTLPixelFormatBGRA8Unorm;
         MTLPixelFormat metalFormat = pixelFormat == kCVPixelFormatType_32BGRA ? metalFormat32BGRA : MTLPixelFormatR16Float;
 
         sampling->cvTextureCacheTexture = CreateTextureFromCVTextureCache2(sampling->cvTextureCache, sampling->cvImageBuffer, *w, *h, metalFormat);

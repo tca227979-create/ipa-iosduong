@@ -5363,12 +5363,13 @@ process_single_step (void)
 {
 	process_signal_event (mono_de_process_single_step);
 }
-
+#endif
 /*
  * debugger_agent_single_step_event:
  *
  *   Called from a signal handler to handle a single step event.
  */
+#ifndef RUNTIME_IL2CPP
 static void
 debugger_agent_single_step_event (void *sigctx)
 {
@@ -5951,7 +5952,7 @@ unity_debugger_agent_handle_exception(MonoException *exc)
 	{
 		SingleStepReq* ss_req = unity_get_active_ss_req();
 		if (!ss_req || !ss_req->bps) {
-			tls->exception = exc;
+			mono_gc_wbarrier_generic_store_internal (&tls->exception, exc);
 		} else if (ss_req->bps && seqPt) {
 			int ss_req_bp_count = g_slist_length(ss_req->bps);
 			GHashTable *ss_req_bp_cache = NULL;
@@ -6366,6 +6367,19 @@ buffer_add_value_full (Buffer *buf, MonoType *t, void *addr, MonoDomain *domain,
 				continue;
 			if (mono_field_is_deleted (f))
 				continue;
+
+#if ENABLE_NETCORE
+			if (mono_vtype_get_field_addr(addr, f) == addr && mono_class_from_mono_type_internal(t) == mono_class_from_mono_type_internal(mono_field_get_type(f)) && !boxed_vtype) //to avoid infinite recursion 
+			{
+				gssize val = *(gssize*)addr;
+				buffer_add_byte(buf, MONO_TYPE_PTR);
+				buffer_add_long(buf, val);
+				if (CHECK_PROTOCOL_VERSION(2, 46))
+					buffer_add_typeid(buf, domain, mono_class_from_mono_type_internal(t));
+				continue;
+			}
+#endif
+
 			buffer_add_value_full (buf, mono_field_get_type (f), mono_vtype_get_field_addr (addr, f), domain, FALSE, parent_vtypes, len_fixed_array != 1 ? len_fixed_array : isFixedSizeArray(f));
 		}
 
@@ -6451,6 +6465,18 @@ decode_vtype (MonoType *t, MonoDomain *domain, gpointer void_addr, gpointer void
 			continue;
 		if (mono_field_is_deleted (f))
 			continue;
+
+//#if ENABLE_NETCORE
+			if (mono_vtype_get_field_addr(addr, f) == addr && klass == mono_class_from_mono_type_internal(mono_field_get_type(f))) //to avoid infinite recursion 
+			{
+				int type = decode_byte(buf, &buf, limit);
+				/* We send these as I8, so we get them back as such */
+				g_assert (type == MONO_TYPE_I8);
+				*(gssize*)addr = decode_long(buf, &buf, limit);
+				nfields --;
+				continue;
+			}
+//#endif
 		err = decode_value (mono_field_get_type (f), domain, mono_vtype_get_field_addr (addr, f), buf, &buf, limit, check_field_datatype);
 		if (err != ERR_NONE)
 			return err;

@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 
+
 // returns CVMetalTextureCacheRef
 void*       CreateCVTextureCache();
 // cache = CVMetalTextureCacheRef
@@ -12,7 +13,7 @@ void        FlushCVTextureCache(void* cache);
 void*       CreateTextureFromCVTextureCache2(void* cache, void* image, size_t w, size_t h, uint64_t metalFormat);
 
 // texture = CVMetalTextureRef
-MTLTextureRef   GetMetalTextureFromCVTextureCache(void* texture);
+id<MTLTexture>   GetMetalTextureFromCVTextureCache(void* texture);
 
 // texture = CVMetalTextureRef
 uintptr_t       GetTextureFromCVTextureCache(void* texture);

@@ -1,6 +1,6 @@
 #pragma once
 #include "il2cpp-config.h"
-struct Il2CppObject;
+#include "il2cpp-object-internals.h"
 
 namespace il2cpp
 {
@@ -9,6 +9,9 @@ namespace vm
     class LIBIL2CPP_CODEGEN_API Monitor
     {
     public:
+        static void AllocateStaticData();
+        static void FreeStaticData();
+
         static void Enter(Il2CppObject* object);
         static bool TryEnter(Il2CppObject* object, uint32_t timeout);
         static void Exit(Il2CppObject* object);
@@ -22,17 +25,18 @@ namespace vm
 
 #if !IL2CPP_SUPPORT_THREADS
 
-    inline void Monitor::Enter(Il2CppObject* object)
+    inline void Monitor::AllocateStaticData()
+    {
+    }
+
+    inline void Monitor::FreeStaticData()
     {
     }
 
     inline bool Monitor::TryEnter(Il2CppObject* object, uint32_t timeout)
     {
+        Monitor::Enter(object);
         return true;
-    }
-
-    inline void Monitor::Exit(Il2CppObject* object)
-    {
     }
 
     inline void Monitor::Pulse(Il2CppObject* object)
@@ -54,12 +58,12 @@ namespace vm
 
     inline bool Monitor::IsAcquired(Il2CppObject* object)
     {
-        return true;
+        return object->monitor != 0;
     }
 
     inline bool Monitor::IsOwnedByCurrentThread(Il2CppObject* object)
     {
-        return true;
+        return Monitor::IsAcquired(object);
     }
 
 #endif

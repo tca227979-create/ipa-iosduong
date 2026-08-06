@@ -41,6 +41,8 @@ __attribute__ ((visibility("default")))
 
 - (UnityAppController*)appController;
 
+- (UITextField*)keyboardTextField;
+
 + (UnityFramework*)getInstance;
 
 - (void)setDataBundleId:(const char*)bundleId;
@@ -57,7 +59,11 @@ __attribute__ ((visibility("default")))
 - (void)showUnityWindow;
 - (void)pause:(bool)pause;
 
-- (void)setExecuteHeader:(const MachHeader*)header;
+- (void)setAbsoluteURL:(const char *)url;
+
+- (void)setExecuteHeader:(const MachHeader*)header __attribute__((deprecated("Not used anymore")));
 - (void)sendMessageToGOWithName:(const char*)goName functionName:(const char*)name message:(const char*)msg;
+
+- (int)shouldRunInBackground;
 
 @end

@@ -82,8 +82,8 @@ typedef void (STDCALL *CultureInfoChangedCallback)(const Il2CppChar* arg);
     #define ALIGN_OF(T) __alignof__(T)
     #define ALIGN_TYPE(val) __attribute__((aligned(val)))
     #define ALIGN_FIELD(val) ALIGN_TYPE(val)
-// GCC earlier than 10.1 are unable to compile properly with the always_inline attribute
-    #if defined(__GNUC__) && IL2CPP_GCC_VERSION < 100100
+// GCC earlier than 12.2 are unable to compile properly with the always_inline attribute. Does not work with recursive functions.
+    #if (defined(__GNUC__) && IL2CPP_GCC_VERSION <= 120200)
         #define IL2CPP_FORCE_INLINE inline
     #else
         #define IL2CPP_FORCE_INLINE inline __attribute__ ((always_inline))
@@ -107,11 +107,6 @@ typedef void (STDCALL *CultureInfoChangedCallback)(const Il2CppChar* arg);
 #endif
 #endif
 
-#define IL2CPP_PAGE_SIZE 4096
-
-// 64-bit types are aligned to 8 bytes on 64-bit platforms
-#define IL2CPP_ENABLE_INTERLOCKED_64_REQUIRED_ALIGNMENT (IL2CPP_SIZEOF_VOID_P == 8)
-
 /* Debugging */
 #ifndef IL2CPP_DEBUG
 #define IL2CPP_DEBUG 0
@@ -121,14 +116,12 @@ typedef void (STDCALL *CultureInfoChangedCallback)(const Il2CppChar* arg);
 #define IL2CPP_DEVELOPMENT 0
 #endif
 
-#define IL2CPP_THREADS_ALL_ACCESS (!IL2CPP_THREADS_STD && IL2CPP_TARGET_XBOXONE)
-
-#if (IL2CPP_SUPPORT_THREADS && (!IL2CPP_THREADS_STD && !IL2CPP_THREADS_PTHREAD && !IL2CPP_THREADS_WIN32 && !IL2CPP_THREADS_XBOXONE && !IL2CPP_THREADS_N3DS && !IL2CPP_THREADS_PS4 && !IL2CPP_THREADS_PSP2 && !IL2CPP_THREADS_SWITCH && !IL2CPP_THREADS_CUSTOM))
+#if (IL2CPP_SUPPORT_THREADS && (!IL2CPP_THREADS_STD && !IL2CPP_THREADS_PTHREAD && !IL2CPP_THREADS_WIN32 && !IL2CPP_THREADS_N3DS && !IL2CPP_THREADS_PS4 && !IL2CPP_THREADS_PSP2 && !IL2CPP_THREADS_SWITCH && !IL2CPP_THREADS_SWITCH2 && !IL2CPP_THREADS_CUSTOM))
 #error "No thread implementation defined"
 #endif
 
 /* Platform support to cleanup attached threads even when native threads are not exited cleanly */
-#define IL2CPP_HAS_NATIVE_THREAD_CLEANUP (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32 || IL2CPP_TARGET_SWITCH)
+#define IL2CPP_HAS_NATIVE_THREAD_CLEANUP (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32 || IL2CPP_TARGET_SWITCH || IL2CPP_TARGET_SWITCH2)
 
 #define IL2CPP_THREAD_IMPL_HAS_COM_APARTMENTS IL2CPP_TARGET_WINDOWS
 
@@ -136,33 +129,7 @@ typedef void (STDCALL *CultureInfoChangedCallback)(const Il2CppChar* arg);
 #define IL2CPP_ENABLE_PLATFORM_THREAD_STACKSIZE 1
 #endif
 
-#if IL2CPP_TINY
-    #if IL2CPP_TINY_DEBUG_METADATA || IL2CPP_TINY_DEBUGGER
-        #define IL2CPP_ENABLE_STACKTRACES 1
-    #else
-        #define IL2CPP_ENABLE_STACKTRACES 0
-    #endif // IL2CPP_TINY_DEBUG_METADATA
-#else
-    #define IL2CPP_ENABLE_STACKTRACES !IL2CPP_TARGET_QNX
-#endif // IL2CPP_TINY
-
-#ifndef IL2CPP_DISABLE_GC
-#if IL2CPP_TINY && IL2CPP_TARGET_JAVASCRIPT
-#define IL2CPP_DISABLE_GC 1
-#endif
-#endif
-
-#ifndef FORCE_PINVOKE_INTERNAL
-#if IL2CPP_TINY && IL2CPP_TARGET_IOS
-#define FORCE_PINVOKE_INTERNAL 1
-#endif
-#endif
-
-#ifndef HOST_WASM
-#if IL2CPP_TINY_DEBUGGER && IL2CPP_TARGET_JAVASCRIPT
-#define HOST_WASM 1
-#endif
-#endif
+#define IL2CPP_ENABLE_STACKTRACES !IL2CPP_TARGET_QNX
 
 /* Platforms which use OS specific implementation to extract stracktrace */
 #if !defined(IL2CPP_ENABLE_NATIVE_STACKTRACES)
@@ -178,7 +145,7 @@ typedef void (STDCALL *CultureInfoChangedCallback)(const Il2CppChar* arg);
 
 /* Platforms which use stacktrace sentries */
 #if !defined(IL2CPP_ENABLE_STACKTRACE_SENTRIES)
-#define IL2CPP_ENABLE_STACKTRACE_SENTRIES (IL2CPP_TARGET_JAVASCRIPT || IL2CPP_TARGET_N3DS || IL2CPP_TARGET_SWITCH)
+#define IL2CPP_ENABLE_STACKTRACE_SENTRIES (IL2CPP_TARGET_JAVASCRIPT || IL2CPP_TARGET_N3DS || IL2CPP_TARGET_SWITCH || IL2CPP_TARGET_SWITCH2)
 #endif
 
 #endif // IL2CPP_ENABLE_STACKTRACES
@@ -253,6 +220,7 @@ static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 #define $Line                   MAKE_STRING( STRINGIZE, __LINE__ )
 #define FIXME                   "FIXME: "
 #define ICALLMESSAGE(name)      __FILE_UTF8__ "(" $Line ") : FIXME: Missing internal call implementation: " name
+#define INTRINSICMESSAGE(name)      __FILE_UTF8__ "(" $Line ") : FIXME: Missing intrinsic implementation: " name
 #define RUNTIMEMESSAGE(name)    __FILE_UTF8__ "(" $Line ") : FIXME: Missing runtime implementation: " name
 #define NOTSUPPORTEDICALLMESSAGE(target, name, reason)  __FILE_UTF8__ "(" $Line ") : Unsupported internal call for " target ":" name " - " reason
 
@@ -273,6 +241,17 @@ static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 #define IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(func, reason) \
     PRAGMA_MESSAGE(ICALLMESSAGE(#func))
 
+#define IL2CPP_NOT_IMPLEMENTED_INTRINSIC(func) \
+    PRAGMA_MESSAGE(INTRINSICMESSAGE(#func)) \
+    IL2CPP_ASSERT(0 && #func)
+
+#if MONO_BCL_NET8_FIXME
+#define IL2CPP_NOT_IMPLEMENTED_INTRINSIC_OPTIONAL_FIXME(func) \
+    IL2CPP_NOT_IMPLEMENTED_INTRINSIC(#func)
+#else
+#define IL2CPP_NOT_IMPLEMENTED_INTRINSIC_OPTIONAL_FIXME(func)
+#endif
+
 #define IL2CPP_NOT_IMPLEMENTED(func) \
     PRAGMA_MESSAGE(RUNTIMEMESSAGE(#func)) \
     IL2CPP_ASSERT(0 && #func)
@@ -285,21 +264,31 @@ static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 #include <emscripten/emscripten.h>
 // emscripten's assert will throw an exception in js.
 // For now, we don't want that, so just printf and move on.
-    #define IL2CPP_NOT_IMPLEMENTED_ICALL(func) \
+#define IL2CPP_NOT_IMPLEMENTED_ICALL(func) \
     PRAGMA_MESSAGE(message(ICALLMESSAGE(#func))) \
     emscripten_log(EM_LOG_NO_PATHS | EM_LOG_CONSOLE | EM_LOG_ERROR | EM_LOG_JS_STACK, "Not implemented icall: %s\n", #func);
 #define IL2CPP_NOT_IMPLEMENTED_ICALL_NO_ASSERT(func, reason) \
     PRAGMA_MESSAGE(message(ICALLMESSAGE(#func)))
 
+#define IL2CPP_NOT_IMPLEMENTED_INTRINSIC(func) \
+    PRAGMA_MESSAGE(message(INTRINSICMESSAGE(#func))) \
+    emscripten_log(EM_LOG_NO_PATHS | EM_LOG_CONSOLE | EM_LOG_ERROR | EM_LOG_JS_STACK, "Not implemented intrinsic: %s\n", #func);
+#if MONO_BCL_NET8_FIXME
+#define IL2CPP_NOT_IMPLEMENTED_INTRINSIC_OPTIONAL_FIXME(func) \
+    IL2CPP_NOT_IMPLEMENTED_INTRINSIC(#func)
+#else
+#define IL2CPP_NOT_IMPLEMENTED_INTRINSIC_OPTIONAL_FIXME(func)
+#endif
+
+IL2CPP_EXTERN_C void il2cpp_console_printf_error(const char*, ...);
+
 #define IL2CPP_NOT_IMPLEMENTED(func) \
     PRAGMA_MESSAGE(message(RUNTIMEMESSAGE(#func))) \
-    printf("Not implemented: %s\n", #func);
+    il2cpp_console_printf_error("Not implemented: %s\n", #func);
 #define IL2CPP_NOT_IMPLEMENTED_NO_ASSERT(func, reason) \
     PRAGMA_MESSAGE(message(RUNTIMEMESSAGE(#func)))
 
 #endif
-
-#if !RUNTIME_TINY
 
 #define NOT_SUPPORTED_IL2CPP(func, reason) \
     il2cpp::vm::Exception::Raise (il2cpp::vm::Exception::GetNotSupportedException ( NOTSUPPORTEDICALLMESSAGE ("IL2CPP", #func, #reason) ))
@@ -310,19 +299,15 @@ static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 #define NOT_SUPPORTED_REMOTING(func) \
     il2cpp::vm::Exception::Raise (il2cpp::vm::Exception::GetNotSupportedException ( NOTSUPPORTEDICALLMESSAGE ("IL2CPP", #func, "System.Runtime.Remoting is not supported.") ))
 
+#define NOT_SUPPORTED_DYNAMIC_CODE(func) \
+    il2cpp::vm::Exception::Raise (il2cpp::vm::Exception::GetPlatformNotSupportedException ( NOTSUPPORTEDICALLMESSAGE ("IL2CPP", #func, "Dynamic code is not supported.") ))
+
 #if IL2CPP_TARGET_JAVASCRIPT
 #define NOT_SUPPORTED_WEBGL(func, reason) \
     il2cpp::vm::Exception::Raise (il2cpp::vm::Exception::GetNotSupportedException ( NOTSUPPORTEDICALLMESSAGE ("WebGL", #func, #reason) ))
 #else
 #define NOT_SUPPORTED_WEBGL(func, reason)
 #endif
-
-#else
-#define NOT_SUPPORTED_IL2CPP(func, reason)
-#define NOT_SUPPORTED_SRE(func)
-#define NOT_SUPPORTED_REMOTING(func)
-#define NOT_SUPPORTED_WEBGL(func, reason)
-#endif // #if !RUNTIME_TINY
 
 #if IL2CPP_COMPILER_MSVC
     #define IL2CPP_DIR_SEPARATOR '\\'   /* backslash */
@@ -337,15 +322,14 @@ static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 #if IL2CPP_COMPILER_MSVC
     #define IL2CPP_USE_GENERIC_SOCKET_IMPL  0
 #else
-    #define IL2CPP_USE_GENERIC_SOCKET_IMPL  !(IL2CPP_TARGET_POSIX || IL2CPP_TARGET_SWITCH || IL2CPP_SUPPORT_SOCKETS_POSIX_API)
+    #define IL2CPP_USE_GENERIC_SOCKET_IMPL  !(IL2CPP_TARGET_POSIX || IL2CPP_TARGET_SWITCH || IL2CPP_TARGET_SWITCH2 || IL2CPP_SUPPORT_SOCKETS_POSIX_API)
 #endif
 
 #ifndef IL2CPP_USE_GENERIC_SOCKET_BRIDGE
 #define IL2CPP_USE_GENERIC_SOCKET_BRIDGE !IL2CPP_TARGET_JAVASCRIPT
 #endif
 
-/* Set by platforms that require special handling of SIGPIPE signalling during socket sends. */
-/* Is redefined by platform specific headers. Enabled for common Linux desktop platforms. */
+/* set by platforms that require special handling of SIGPIPE signalling during socket sends */
 #ifndef IL2CPP_USE_SEND_NOSIGNAL
     #define IL2CPP_USE_SEND_NOSIGNAL IL2CPP_TARGET_LINUX
 #endif
@@ -355,11 +339,11 @@ static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 #endif
 
 #define IL2CPP_USE_GENERIC_COM  (!IL2CPP_TARGET_WINDOWS || IL2CPP_TARGET_WINDOWS_GAMES)
-#define IL2CPP_USE_GENERIC_COM_SAFEARRAYS   (!IL2CPP_TARGET_WINDOWS || IL2CPP_TARGET_XBOXONE || IL2CPP_TARGET_WINDOWS_GAMES)
-#define IL2CPP_USE_GENERIC_WINDOWSRUNTIME (!IL2CPP_TARGET_WINDOWS || RUNTIME_NONE || IL2CPP_TINY || IL2CPP_TARGET_WINDOWS_GAMES)
+#define IL2CPP_USE_GENERIC_COM_SAFEARRAYS   (!IL2CPP_TARGET_WINDOWS || IL2CPP_TARGET_WINDOWS_GAMES)
+#define IL2CPP_USE_GENERIC_WINDOWSRUNTIME (!IL2CPP_TARGET_WINDOWS || RUNTIME_NONE || IL2CPP_TARGET_WINDOWS_GAMES)
 
 #ifndef IL2CPP_USE_GENERIC_MEMORY_MAPPED_FILE
-#define IL2CPP_USE_GENERIC_MEMORY_MAPPED_FILE (IL2CPP_TARGET_XBOXONE || IL2CPP_TARGET_WINDOWS_GAMES || IL2CPP_TARGET_JAVASCRIPT || (!IL2CPP_TARGET_WINDOWS && !IL2CPP_TARGET_POSIX))
+#define IL2CPP_USE_GENERIC_MEMORY_MAPPED_FILE (IL2CPP_TARGET_WINDOWS_GAMES || IL2CPP_TARGET_JAVASCRIPT || (!IL2CPP_TARGET_WINDOWS && !IL2CPP_TARGET_POSIX))
 #endif
 
 #ifndef IL2CPP_HAS_CLOSE_EXEC
@@ -384,6 +368,14 @@ static const uint16_t kInvalidIl2CppMethodSlot = 65535;
 
 #ifndef IL2CPP_USE_GENERIC_THREAD
 #define IL2CPP_USE_GENERIC_THREAD (!IL2CPP_TARGET_WINDOWS && !IL2CPP_TARGET_POSIX && !IL2CPP_TARGET_DARWIN)
+#endif
+
+#ifndef IL2CPP_ENABLE_PLATFORM_THREAD_RENAME
+#define IL2CPP_ENABLE_PLATFORM_THREAD_RENAME 0
+#endif
+
+#ifndef IL2CPP_ENABLE_PLATFORM_MAX_STACKSIZE
+#define IL2CPP_ENABLE_PLATFORM_MAX_STACKSIZE 0
 #endif
 
 #define IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS 1
@@ -446,21 +438,21 @@ static const uintptr_t kIl2CppUIntPtrMax = UINT32_MAX;
 
 static const int ipv6AddressSize = 16;
 #if !defined(IL2CPP_SUPPORT_IPV6)
-#define IL2CPP_SUPPORT_IPV6 !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_SWITCH
+#define IL2CPP_SUPPORT_IPV6 !IL2CPP_TARGET_PS4 && !IL2CPP_TARGET_SWITCH && !IL2CPP_TARGET_SWITCH2
 #endif
 
 #define IL2CPP_SUPPORT_IPV6_SUPPORT_QUERY (IL2CPP_SUPPORT_IPV6 && IL2CPP_TARGET_LINUX)
 
 #if !defined(IL2CPP_SUPPORT_SEND_FILE)
-#define IL2CPP_SUPPORT_SEND_FILE (!IL2CPP_TARGET_SWITCH && !IL2CPP_TARGET_QNX && !IL2CPP_TARGET_JAVASCRIPT)
+#define IL2CPP_SUPPORT_SEND_FILE (!IL2CPP_TARGET_SWITCH && !IL2CPP_TARGET_SWITCH2 && !IL2CPP_TARGET_JAVASCRIPT)
 #endif
 
 #if !defined(IL2CPP_SUPPORT_RECV_MSG)
-#define IL2CPP_SUPPORT_RECV_MSG (!IL2CPP_TARGET_SWITCH)
+#define IL2CPP_SUPPORT_RECV_MSG (!IL2CPP_TARGET_SWITCH && !IL2CPP_TARGET_SWITCH2)
 #endif
 
 #if !defined(IL2CPP_SUPPORT_SEND_MSG)
-#define IL2CPP_SUPPORT_SEND_MSG (!IL2CPP_TARGET_SWITCH)
+#define IL2CPP_SUPPORT_SEND_MSG (!IL2CPP_TARGET_SWITCH && !IL2CPP_TARGET_SWITCH2)
 #endif
 
 #ifndef IL2CPP_USE_NETWORK_ACCESS_HANDLER
@@ -539,7 +531,7 @@ static const Il2CppChar kIl2CppNewLine[] = { '\n', '\0' };
 #define IL2CPP_ATTRIBUTE_WEAK __attribute__((weak))
 #endif
 
-#if IL2CPP_TARGET_XBOXONE || IL2CPP_TARGET_WINRT || IL2CPP_TARGET_ANDROID || IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PSP2
+#if IL2CPP_TARGET_ANDROID || IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PSP2
 #define IL2CPP_USE_GENERIC_CPU_INFO 1
 #else
 #define IL2CPP_USE_GENERIC_CPU_INFO 0
@@ -572,7 +564,7 @@ char(*il2cpp_array_size_helper(Type(&array)[Size]))[Size];
 #define IL2CPP_MUTATE_METHOD_POINTERS !IL2CPP_TARGET_PS4
 #endif
 
-#define IL2CPP_USE_GENERIC_ASSERT !(IL2CPP_TARGET_WINDOWS || IL2CPP_TARGET_XBOXONE || IL2CPP_TARGET_WINRT || IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5)
+#define IL2CPP_USE_GENERIC_ASSERT !(IL2CPP_TARGET_WINDOWS || IL2CPP_TARGET_PS4 || IL2CPP_TARGET_PS5)
 
 #ifndef IL2CPP_USE_SPARSEHASH
 #define IL2CPP_USE_SPARSEHASH (IL2CPP_TARGET_ANDROID || IL2CPP_TARGET_IOS)
@@ -591,4 +583,61 @@ extern void il2cpp_assert(const char* assertion, const char* file, unsigned int 
 
 #if !defined(IL2CPP_SUPPORTS_BROKERED_FILESYSTEM)
 #define IL2CPP_SUPPORTS_BROKERED_FILESYSTEM IL2CPP_TARGET_WINRT
+#endif
+
+#define IL2CPP_USE_PLATFORM_SPECIFIC_PRINTF IL2CPP_TARGET_IOS
+
+#if !defined(MONO_NET8_BCL)
+#define MONO_NET8_BCL 0
+#endif
+
+#if IL2CPP_SANITIZE_ADDRESS
+#ifndef IL2CPP_ENABLE_RELOAD
+#define IL2CPP_ENABLE_RELOAD 1
+#endif
+#endif
+
+#ifndef IL2CPP_SYSTEM_GLOBALIZATION_INVARIANT
+#define IL2CPP_SYSTEM_GLOBALIZATION_INVARIANT 0
+#endif
+
+#ifndef IL2CPP_STATIC_ICU
+#define IL2CPP_STATIC_ICU 0
+#endif
+
+// TODO: Enable at .NET 9 - All FP casts become saturating instead of being architecture dependent
+#define IL2CPP_FLOATING_POINT_CAST_IS_SATURATING 0
+
+
+#if IL2CPP_FLOATING_POINT_CAST_IS_SATURATING
+
+// MSVC requires us to use intrinsics to enable saturating FP casts
+// clang has a compiler flag -fno-strict-float-cast-overflow
+#if defined(_MSC_VER)
+#define IL2CPP_USE_SATURATING_FP_CAST_INTRINSICS 1
+#endif
+
+#else // IL2CPP_FLOATING_POINT_CAST_IS_SATURATING
+
+// On clang we've always enabled -fno-strict-float-cast-overflow so that overflowing casts are well defined
+// But this makes casts on x86/x64 saturating, which we don't want, so we call SSE2 casts explicitly
+// But the 64 bit integer casts we want are only on x64 - use the compat fall back for x86
+#if defined(__clang__)
+#define IL2CPP_USE_SSE2_FP_CASTS IL2CPP_TARGET_X64
+#define IL2CPP_EMULATE_X86_FP_UNSIGNED_OVERFLOW IL2CPP_TARGET_X86
+#endif // defined(__clang__)
+
+#endif  //IL2CPP_FLOATING_POINT_CAST_SATURATING
+
+#ifndef IL2CPP_USE_SATURATING_FP_CAST_INTRINSICS
+#define IL2CPP_USE_SATURATING_FP_CAST_INTRINSICS 0
+#endif
+
+#ifndef IL2CPP_USE_SSE2_FP_CASTS
+#define IL2CPP_USE_SSE2_FP_CASTS 0
+#endif
+
+// On the legacy NetStandard 2.1 Mono builds we made FP overflow work like x86 even on ARM
+#ifndef IL2CPP_EMULATE_X86_FP_UNSIGNED_OVERFLOW
+#define IL2CPP_EMULATE_X86_FP_UNSIGNED_OVERFLOW (!MONO_NET8_BCL && (IL2CPP_TARGET_ARMV7 || IL2CPP_TARGET_ARM64) && !IL2CPP_FLOATING_POINT_CAST_IS_SATURATING)
 #endif

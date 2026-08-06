@@ -1,7 +1,10 @@
 #include "CVTextureCache.h"
+#import "UnityTrampolineInterface.h"
 
-#include "DisplayManager.h"
-#include "UnityMetalSupport.h"
+#if UNITY_XCODE_PROJECT_TYPE_SWIFT
+#import "UnityCoreInterface.h"
+#endif
+
 #include <CoreVideo/CVMetalTextureCache.h>
 
 void* CreateCVTextureCache()
@@ -9,8 +12,8 @@ void* CreateCVTextureCache()
     void* ret = 0;
 
     CVReturn err = 0;
-    if (UnitySelectedRenderingAPI() == apiMetal)
-        err = CVMetalTextureCacheCreate(kCFAllocatorDefault, 0, UnityGetMetalDevice(), 0, (CVMetalTextureCacheRef*)&ret);
+    if (!UnityIsBatchmode())
+        err = CVMetalTextureCacheCreate(kCFAllocatorDefault, 0, UnityMetalDevice(), 0, (CVMetalTextureCacheRef*)&ret);
 
     if (err)
     {
@@ -22,7 +25,7 @@ void* CreateCVTextureCache()
 
 void FlushCVTextureCache(void* cache)
 {
-    if (UnitySelectedRenderingAPI() == apiMetal)
+    if (!UnityIsBatchmode())
         CVMetalTextureCacheFlush((CVMetalTextureCacheRef)cache, 0);
 }
 
@@ -31,7 +34,7 @@ void* CreateTextureFromCVTextureCache2(void* cache, void* image, size_t w, size_
     void* texture = 0;
 
     CVReturn err = 0;
-    if (UnitySelectedRenderingAPI() == apiMetal)
+    if (!UnityIsBatchmode())
     {
         err = CVMetalTextureCacheCreateTextureFromImage(
             kCFAllocatorDefault, (CVMetalTextureCacheRef)cache, (CVImageBufferRef)image, 0,
@@ -50,13 +53,13 @@ void* CreateTextureFromCVTextureCache2(void* cache, void* image, size_t w, size_
 
 id<MTLTexture> GetMetalTextureFromCVTextureCache(void* texture)
 {
-    assert(UnitySelectedRenderingAPI() == apiMetal);
+    assert(!UnityIsBatchmode());
     return CVMetalTextureGetTexture((CVMetalTextureRef)texture);
 }
 
 uintptr_t GetTextureFromCVTextureCache(void* texture)
 {
-    if (UnitySelectedRenderingAPI() == apiMetal)
+    if (!UnityIsBatchmode())
         return (uintptr_t)(__bridge void*)GetMetalTextureFromCVTextureCache(texture);
     return 0;
 }
@@ -82,7 +85,7 @@ void* CreateReadableRTFromCVTextureCache2(void* cache, size_t w, size_t h, uint3
 
 int IsCVTextureFlipped(void* texture)
 {
-    if (UnitySelectedRenderingAPI() == apiMetal)
+    if (!UnityIsBatchmode())
         return CVMetalTextureIsFlipped((CVMetalTextureRef)texture);
     return 0;
 }
@@ -107,11 +110,12 @@ void* CreateBGRA32TextureFromCVTextureCache(void* cache, void* image, size_t w, 
     void* texture = 0;
 
     CVReturn err = 0;
-    if (UnitySelectedRenderingAPI() == apiMetal)
+    if (!UnityIsBatchmode())
     {
+        MTLPixelFormat pixelFormat = UnityGetSRGBRequested() ? MTLPixelFormatBGRA8Unorm_sRGB : MTLPixelFormatBGRA8Unorm;
         err = CVMetalTextureCacheCreateTextureFromImage(
             kCFAllocatorDefault, (CVMetalTextureCacheRef)cache, (CVImageBufferRef)image, 0,
-            (MTLPixelFormat)((UnityDisplaySurfaceMTL*)GetMainDisplaySurface())->colorFormat, w, h, 0, (CVMetalTextureRef*)&texture
+            pixelFormat, w, h, 0, (CVMetalTextureRef*)&texture
         );
     }
 
@@ -128,7 +132,7 @@ void* CreateHalfFloatTextureFromCVTextureCache(void* cache, void* image, size_t 
     void* texture = 0;
 
     CVReturn err = 0;
-    if (UnitySelectedRenderingAPI() == apiMetal)
+    if (!UnityIsBatchmode())
     {
         err = CVMetalTextureCacheCreateTextureFromImage(
             kCFAllocatorDefault, (CVMetalTextureCacheRef)cache, (CVImageBufferRef)image, 0,

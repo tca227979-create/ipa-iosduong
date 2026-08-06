@@ -79,10 +79,11 @@ UnityViewControllerBase* AllocUnitySingleOrientationViewController(UIInterfaceOr
 UnityViewControllerBase* AllocUnityViewController()
 {
 #if UNITY_SUPPORT_ROTATION
-    if (UnityShouldAutorotate())
+    auto options = UnityGetOrientationOptions();
+    if (options.ShouldAutorotate())
         return AllocUnityDefaultViewController();
 
-    UIInterfaceOrientation orient = ConvertToIosScreenOrientation((ScreenOrientation)UnityRequestedScreenOrientation());
+    UIInterfaceOrientation orient = ConvertToIosScreenOrientation(options.GetScreenOrientation());
     return AllocUnitySingleOrientationViewController(orient);
 #else
     return AllocUnityDefaultViewController();

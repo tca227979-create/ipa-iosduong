@@ -5,6 +5,7 @@
 #include "il2cpp-runtime-metadata.h"
 #include "os/LibraryLoader.h"
 #include "os/Image.h"
+#include "utils/Memory.h"
 #include "utils/StringUtils.h"
 
 #include "WindowsHelpers.h"
@@ -13,36 +14,28 @@
 #define WINNT // All functions in Evntrace.h are under this define.. Why? I have no idea!
 #include "Evntrace.h"
 
-#if IL2CPP_TARGET_XBOXONE
-#include "os/XboxOne/Win32ApiEmulationForXboxClassLibraries.h"
-#elif IL2CPP_TARGET_WINDOWS_GAMES
+#if IL2CPP_TARGET_WINDOWS_GAMES
 #include "os/WindowsGames/Win32ApiWindowsGamesEmulation.h"
 #endif
+
+#include <bcrypt.h>
 
 namespace il2cpp
 {
 namespace os
 {
-#if !IL2CPP_TARGET_WINDOWS_DESKTOP
     const HardcodedPInvokeDependencyFunction kAdvapiFunctions[] =
     {
-#if !IL2CPP_TARGET_XBOXONE
-#if WINDOWS_SDK_BUILD_VERSION >= 16299
         HARDCODED_DEPENDENCY_FUNCTION(EnumerateTraceGuidsEx),
-#endif
         HARDCODED_DEPENDENCY_FUNCTION(EventActivityIdControl),
-#endif
         HARDCODED_DEPENDENCY_FUNCTION(EventRegister),
         HARDCODED_DEPENDENCY_FUNCTION(EventSetInformation),
         HARDCODED_DEPENDENCY_FUNCTION(EventUnregister),
         HARDCODED_DEPENDENCY_FUNCTION(EventWrite),
-#if !IL2CPP_TARGET_XBOXONE
         HARDCODED_DEPENDENCY_FUNCTION(EventWriteEx),
         HARDCODED_DEPENDENCY_FUNCTION(EventWriteString),
         HARDCODED_DEPENDENCY_FUNCTION(EventWriteTransfer),
-#endif
     };
-#endif
 
     const HardcodedPInvokeDependencyFunction kKernel32Functions[] =
     {
@@ -60,87 +53,96 @@ namespace os
         HARDCODED_DEPENDENCY_FUNCTION(FindFirstFileExW),
         HARDCODED_DEPENDENCY_FUNCTION(FindNextFileW),
         HARDCODED_DEPENDENCY_FUNCTION(MoveFileExW),
+        HARDCODED_DEPENDENCY_FUNCTION(MultiByteToWideChar),
         HARDCODED_DEPENDENCY_FUNCTION(RemoveDirectoryW),
         HARDCODED_DEPENDENCY_FUNCTION(ReplaceFileW),
         HARDCODED_DEPENDENCY_FUNCTION(SetFileAttributesW),
         HARDCODED_DEPENDENCY_FUNCTION(SetFileInformationByHandle),
         HARDCODED_DEPENDENCY_FUNCTION(GetFileInformationByHandleEx),
-        // The CopyFile2 method is only required by the class library code for UWP builds.
-        // It does not exist in Windows 7, so we don't want to use it for Windows Desktop
-        // builds, since they still support Windows 7.
-#if !IL2CPP_TARGET_WINDOWS_DESKTOP
         HARDCODED_DEPENDENCY_FUNCTION(CopyFile2),
-#endif
-#if WINDOWS_SDK_BUILD_VERSION >= 16299
         HARDCODED_DEPENDENCY_FUNCTION(SetThreadErrorMode),
+        HARDCODED_DEPENDENCY_FUNCTION(GetCurrentThread),
+        HARDCODED_DEPENDENCY_FUNCTION(GetThreadDescription),
         HARDCODED_DEPENDENCY_FUNCTION(CopyFileExW),
         HARDCODED_DEPENDENCY_FUNCTION(DeleteVolumeMountPointW),
         HARDCODED_DEPENDENCY_FUNCTION(GetLogicalDrives),
+        HARDCODED_DEPENDENCY_FUNCTION(LocalAlloc),
+        HARDCODED_DEPENDENCY_FUNCTION(LocalReAlloc),
+        HARDCODED_DEPENDENCY_FUNCTION(LocalFree),
+        HARDCODED_DEPENDENCY_FUNCTION(GetTempPathW),
+#if IL2CPP_TARGET_WINDOWS_GAMES
+        HARDCODED_DEPENDENCY_FUNCTION_BY_NAME("GetTempPath2W", GetTempPathW)
 #endif
     };
 
-#if IL2CPP_TARGET_WINRT || IL2CPP_TARGET_WINDOWS_GAMES
     const HardcodedPInvokeDependencyFunction kBCryptFunctions[] =
     {
         HARDCODED_DEPENDENCY_FUNCTION(BCryptGenRandom),
     };
-#endif
 
     const HardcodedPInvokeDependencyFunction kiphlpapiFunctions[] =
     {
         HARDCODED_DEPENDENCY_FUNCTION(GetNetworkParams),
-#if !IL2CPP_TARGET_XBOXONE
         HARDCODED_DEPENDENCY_FUNCTION(GetAdaptersAddresses),
         HARDCODED_DEPENDENCY_FUNCTION(GetIfEntry),
-#endif
     };
 
-#if !IL2CPP_TARGET_WINDOWS_DESKTOP && !IL2CPP_TARGET_WINDOWS_GAMES
+#if !IL2CPP_TARGET_WINDOWS_GAMES
     const HardcodedPInvokeDependencyFunction kTimezoneFunctions[] =
     {
-#if !IL2CPP_TARGET_XBOXONE
         HARDCODED_DEPENDENCY_FUNCTION(EnumDynamicTimeZoneInformation),
-#endif
         HARDCODED_DEPENDENCY_FUNCTION(GetDynamicTimeZoneInformation),
-#if !IL2CPP_TARGET_XBOXONE
         HARDCODED_DEPENDENCY_FUNCTION(GetDynamicTimeZoneInformationEffectiveYears),
-#endif
         HARDCODED_DEPENDENCY_FUNCTION(GetTimeZoneInformationForYear),
     };
-#endif
 
-#if IL2CPP_TARGET_WINRT
     const HardcodedPInvokeDependencyFunction kWinTypesFunctions[] =
     {
         HARDCODED_DEPENDENCY_FUNCTION(RoGetBufferMarshaler)
+    };
+#else
+    const HardcodedPInvokeDependencyFunction kUser32Functions[] =
+    {
+        HARDCODED_DEPENDENCY_FUNCTION(LoadStringW)
     };
 #endif
 
 // All these come without ".dll" extension!
     const HardcodedPInvokeDependencyLibrary kHardcodedPInvokeDependencies[] =
     {
-#if IL2CPP_TARGET_WINDOWS_GAMES
+        HARDCODED_DEPENDENCY_LIBRARY(L"kernel32", kKernel32Functions),
         HARDCODED_DEPENDENCY_LIBRARY(L"bcrypt", kBCryptFunctions),
-#else
-#if !IL2CPP_TARGET_WINDOWS_DESKTOP // Some of these functions are win8+s
+#if !IL2CPP_TARGET_WINDOWS_GAMES
         HARDCODED_DEPENDENCY_LIBRARY(L"advapi32", kAdvapiFunctions),
         HARDCODED_DEPENDENCY_LIBRARY(L"api-ms-win-core-timezone-l1-1-0", kTimezoneFunctions),
-#endif
-        HARDCODED_DEPENDENCY_LIBRARY(L"kernel32", kKernel32Functions),
         HARDCODED_DEPENDENCY_LIBRARY(L"iphlpapi", kiphlpapiFunctions),
-#if IL2CPP_TARGET_WINRT // Win8+, plus needs to be looked up dynamically on Xbox One
-        HARDCODED_DEPENDENCY_LIBRARY(L"wintypes", kWinTypesFunctions),
-        HARDCODED_DEPENDENCY_LIBRARY(L"bcrypt", kBCryptFunctions),
-#endif
+        HARDCODED_DEPENDENCY_LIBRARY(L"wintypes", kWinTypesFunctions)
+#else
+        HARDCODED_DEPENDENCY_LIBRARY(L"user32", kUser32Functions)
 #endif
     };
 
     const HardcodedPInvokeDependencyLibrary* LibraryLoader::HardcodedPInvokeDependencies = kHardcodedPInvokeDependencies;
     const size_t LibraryLoader::HardcodedPInvokeDependenciesCount = ARRAYSIZE(kHardcodedPInvokeDependencies);
 
-    Baselib_DynamicLibrary_Handle LibraryLoader::ProbeForLibrary(const Il2CppNativeChar* libraryName, const size_t /*libraryNameLength*/, std::string& detailedError)
+    Baselib_DynamicLibrary_Handle LibraryLoader::ProbeForLibrary(const Il2CppNativeChar* libraryName, const size_t libraryNameLength, std::string& detailedError)
     {
-        return TryOpeningLibrary(libraryName, detailedError);
+        Baselib_DynamicLibrary_Handle handle = TryOpeningLibrary(libraryName, detailedError);
+
+        if (handle == Baselib_DynamicLibrary_Handle_Invalid)
+        {
+            if (libraryNameLength > 4 && _wcsnicmp(libraryName + libraryNameLength - 4, L".dll", 4) != 0)
+            {
+                Il2CppNativeChar* libaryNameWithExt = (Il2CppNativeChar*)IL2CPP_MALLOC((libraryNameLength + 5) * sizeof(Il2CppNativeChar));
+                memcpy(libaryNameWithExt, libraryName, libraryNameLength * sizeof(Il2CppNativeChar));
+                wcscpy(libaryNameWithExt + libraryNameLength, L".dll");
+                detailedError.clear();
+                handle = TryOpeningLibrary(libaryNameWithExt, detailedError);
+                IL2CPP_FREE(libaryNameWithExt);
+            }
+        }
+
+        return handle;
     }
 
     Baselib_DynamicLibrary_Handle LibraryLoader::OpenProgramHandle(Baselib_ErrorState& errorState, bool& needsClosing)

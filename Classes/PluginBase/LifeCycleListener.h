@@ -14,10 +14,13 @@
 - (void)unityDidQuit:(NSNotification*)notification;
 @end
 
+
+#ifdef __cplusplus
+// these two function have C++ linkage, don't expose them to Objective-C
 void UnityRegisterLifeCycleListener(id<LifeCycleListener> obj);
 void UnityUnregisterLifeCycleListener(id<LifeCycleListener> obj);
 
-#ifdef __cplusplus
+
 extern "C" {
 #endif
 

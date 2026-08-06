@@ -8,6 +8,7 @@ enum LocationServiceStatus
     kLocationServiceFailed
 };
 
+#ifdef __cplusplus
 class LocationService
 {
 public:
@@ -24,11 +25,22 @@ public:
     static LocationServiceStatus GetHeadingStatus();
     static bool IsHeadingAvailable();
 };
+#endif
 
 #if UNITY_TVOS_SIMULATOR_FAKE_REMOTE
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void ReportSimulatedRemoteButtonPress(UIPressType type);
 void ReportSimulatedRemoteButtonRelease(UIPressType type);
 void ReportSimulatedRemoteTouchesBegan(UIView* view, NSSet* touches);
 void ReportSimulatedRemoteTouchesMoved(UIView* view, NSSet* touches);
 void ReportSimulatedRemoteTouchesEnded(UIView* view, NSSet* touches);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
 #endif

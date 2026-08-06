@@ -127,6 +127,12 @@ EXTERN_C_BEGIN
     EXTERN_C_END
 #   include <TargetConditionals.h>
     EXTERN_C_BEGIN
+#   if !defined(TARGET_OS_XR)
+#     define TARGET_OS_XR 0
+#   endif
+#   if !defined(TARGET_OS_VISION)
+#     define TARGET_OS_VISION 0
+#   endif
 # endif
 
 /* Determine the machine type: */
@@ -142,7 +148,7 @@ EXTERN_C_BEGIN
 # if defined(__aarch64__)
 #    define AARCH64
 #    if !defined(LINUX) && !defined(DARWIN) && !defined(FREEBSD) \
-        && !defined(NN_BUILD_TARGET_PLATFORM_NX) && !defined(__QNX__)
+        && !defined(NN_BUILD_TARGET_PLATFORM_NX) && !defined(NINTENDO_SWITCH2) && !defined(__QNX__)
 #      define NOSYS
 #      define mach_type_known
 #    endif
@@ -154,7 +160,7 @@ EXTERN_C_BEGIN
 #    elif !defined(LINUX) && !defined(NETBSD) && !defined(FREEBSD) \
           && !defined(OPENBSD) && !defined(DARWIN) && !defined(_WIN32) \
           && !defined(__CEGCC__) && !defined(NN_PLATFORM_CTR) \
-          && !defined(NN_BUILD_TARGET_PLATFORM_NX) \
+          && !defined(NN_BUILD_TARGET_PLATFORM_NX) && !defined(NINTENDO_SWITCH2) \
           && !defined(GC_NO_NOSYS) && !defined(SN_TARGET_PSP2) \
           && !defined(SYMBIAN) && !defined(__QNX__)
 #      define NOSYS
@@ -658,6 +664,10 @@ EXTERN_C_BEGIN
 
 # if defined(NN_BUILD_TARGET_PLATFORM_NX)
 #   define NINTENDO_SWITCH
+#   define mach_type_known
+# endif
+
+# if defined(NINTENDO_SWITCH2)
 #   define mach_type_known
 # endif
 
@@ -2319,7 +2329,7 @@ EXTERN_C_BEGIN
 #     define DATASTART GC_FreeBSDGetDataStart(0x1000, (ptr_t)etext)
 #     define DATASTART_USES_BSDGETDATASTART
 #   endif
-#   ifdef NINTENDO_SWITCH
+#   if defined(NINTENDO_SWITCH) || defined(NINTENDO_SWITCH2)
       static int zero_fd = -1;
 #     define OPT_MAP_ANON 0
       extern int __bss_end[];
@@ -2327,8 +2337,13 @@ EXTERN_C_BEGIN
 #     define GETPAGESIZE() 4096
 #     define DATASTART (ptr_t)ALIGNMENT /* cannot be null */
 #     define DATAEND (ptr_t)(&__bss_end)
-      void *switch_get_stack_bottom(void);
-#     define STACKBOTTOM ((ptr_t)switch_get_stack_bottom())
+#     if defined(NINTENDO_SWITCH)
+        void *switch_get_stack_bottom(void);
+#       define STACKBOTTOM ((ptr_t)switch_get_stack_bottom())
+#     else
+        void *switch2_get_stack_bottom(void);
+#       define STACKBOTTOM ((ptr_t)switch2_get_stack_bottom())
+#     endif
 #     undef USE_MMAP
 #     undef USE_MUNMAP
 #   endif
@@ -3292,7 +3307,7 @@ EXTERN_C_BEGIN
 #endif /* !CPPCHECK */
 
 #if defined(PCR) || defined(GC_WIN32_THREADS) || defined(GC_PTHREADS) \
-    || defined(NN_PLATFORM_CTR) || defined(NINTENDO_SWITCH) \
+    || defined(NN_PLATFORM_CTR) || defined(NINTENDO_SWITCH) || defined(NINTENDO_SWITCH2) \
     || defined(SN_TARGET_PS3) \
     || defined(SN_TARGET_PSP2)
   #if !defined(THREADS)
@@ -3631,6 +3646,9 @@ EXTERN_C_BEGIN
 # elif defined(NINTENDO_SWITCH)
     void *switch_get_mem(size_t bytes);
 #   define GET_MEM(bytes) (struct hblk*)switch_get_mem(bytes)
+# elif defined(NINTENDO_SWITCH2)
+    void * switch2_get_mem(size_t bytes);
+#   define GET_MEM(bytes) (struct hblk*)switch2_get_mem(bytes)
 # elif defined(HAIKU)
     ptr_t GC_haiku_get_mem(size_t bytes);
 #   define GET_MEM(bytes) (struct hblk*)GC_haiku_get_mem(bytes)

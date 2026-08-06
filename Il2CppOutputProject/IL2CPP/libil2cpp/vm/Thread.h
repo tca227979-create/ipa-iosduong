@@ -1,3 +1,9 @@
+#if MONO_NET8_BCL
+
+#include "vm/Thread-mono-net8.h"
+
+#else
+
 #pragma once
 
 #include <stdint.h>
@@ -69,7 +75,6 @@ namespace vm
         static Il2CppThread* Attach(Il2CppDomain *domain);
         static void Detach(Il2CppThread *thread);
         static void WalkFrameStack(Il2CppThread *thread, Il2CppFrameWalkFunc func, void *user_data);
-        static Il2CppThread** GetAllAttachedThreads(size_t &size);
         static void AbortAllThreads();
         static Il2CppThread* Main();
         static bool IsVmThread(Il2CppThread *thread);
@@ -87,7 +92,9 @@ namespace vm
         static void SetPriority(Il2CppThread* thread, int32_t priority);
         static int32_t GetPriority(Il2CppThread* thread);
 
-        struct NativeThreadAbortException {};
+        static bool IsNativeThreadAbortExceptionPendingForCurrentThread();
+        NORETURN static void ThrowNativeThreadAbortException();
+        static void NativeThreadAbortExceptionWasHandled();
 
     public:
         // internal
@@ -164,3 +171,4 @@ namespace vm
     };
 } /* namespace vm */
 } /* namespace il2cpp */
+#endif

@@ -5,6 +5,7 @@
 #include "il2cpp-api.h"
 #include "gc/WriteBarrierValidation.h"
 #include "gc/GarbageCollector.h"
+#include "os/Console.h"
 #include "os/Mutex.h"
 #include "vm/StackTrace.h"
 #include <algorithm>
@@ -30,24 +31,6 @@ using namespace il2cpp::vm;
 
 #if !IL2CPP_GC_BOEHM
 #error "Write Barrier Validation is specific to Boehm GC"
-#endif
-
-#if IL2CPP_TINY && !IL2CPP_TINY_DEBUGGER
-
-#define IL2CPP_TINY_BACKEND 1
-
-uint8_t* Il2CppGetTinyTypeUniverse();
-
-typedef void* StackFrames;
-
-struct StackTrace
-{
-    static StackFrames* GetStackFrames()
-    {
-        return NULL;
-    }
-};
-
 #endif
 
 namespace il2cpp
@@ -193,10 +176,6 @@ namespace gc
             }
         }
 
-#if IL2CPP_TINY_BACKEND
-        ptrdiff_t typeOffset = reinterpret_cast<uint8_t*>(((Il2CppObject*)object)->klass) - Il2CppGetTinyTypeUniverse();
-        return "Tiny Type Offset:" + std::to_string(typeOffset);
-#else
         Il2CppClass* klass = il2cpp_object_get_class((Il2CppObject*)(object));
 
         if (klass == NULL)
@@ -212,14 +191,10 @@ namespace gc
         }
 
         return std::string(il2cpp_class_get_namespace(klass)) + "::" + name;
-#endif
     }
 
     static std::string GetReadableStackTrace(const StackFrames &stackTrace)
     {
-#if IL2CPP_TINY_BACKEND
-        return "No managed stack traces in Tiny";
-#else
         std::string str;
         for (StackFrames::const_iterator i = stackTrace.begin(); i != stackTrace.end(); i++)
         {
@@ -232,7 +207,6 @@ namespace gc
             str += '\n';
         }
         return str;
-#endif
     }
 
     static std::string LogError(std::pair<void*, AllocationInfo> const & object, void** reference, void *refObject)
@@ -455,7 +429,7 @@ namespace gc
         }
         msg += "]]>\n</TestResult>\n";
         if (errors > 0)
-            printf("%s", msg.c_str());
+            il2cpp_console_printf_error("%s", msg.c_str());
     }
 } /* gc */
 } /* il2cpp */

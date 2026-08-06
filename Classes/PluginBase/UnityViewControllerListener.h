@@ -38,14 +38,25 @@
 @end
 
 
+#ifdef __cplusplus
+// these two function have C++ linkage, don't expose them to Objective-C
 void UnityRegisterViewControllerListener(id<UnityViewControllerListener> obj);
 void UnityUnregisterViewControllerListener(id<UnityViewControllerListener> obj);
 
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityViewWillLayoutSubviews;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityViewDidLayoutSubviews;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityViewWillDisappear;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityViewDidDisappear;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityViewWillAppear;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityViewDidAppear;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityInterfaceWillChangeOrientation;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityInterfaceDidChangeOrientation;
+
+extern "C"
+{
+#endif
+
+extern __attribute__((visibility("default"))) NSString* const kUnityViewWillLayoutSubviews;
+extern __attribute__((visibility("default"))) NSString* const kUnityViewDidLayoutSubviews;
+extern __attribute__((visibility("default"))) NSString* const kUnityViewWillDisappear;
+extern __attribute__((visibility("default"))) NSString* const kUnityViewDidDisappear;
+extern __attribute__((visibility("default"))) NSString* const kUnityViewWillAppear;
+extern __attribute__((visibility("default"))) NSString* const kUnityViewDidAppear;
+extern __attribute__((visibility("default"))) NSString* const kUnityInterfaceWillChangeOrientation;
+extern __attribute__((visibility("default"))) NSString* const kUnityInterfaceDidChangeOrientation;
+
+#ifdef __cplusplus
+}
+#endif

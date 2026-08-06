@@ -1,52 +1,76 @@
 name: Build iOS IPA
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  build-ipa:
+  build:
     runs-on: macos-14
+    timeout-minutes: 90
 
     steps:
-      - name: Checkout repository
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Reassemble Large Static Libraries
+      - name: Reassemble Unity runtime
+        shell: bash
         run: |
-          echo "Reassembling libiPhone-lib.a..."
-          cat Libraries/libiPhone-lib.a.part01 Libraries/libiPhone-lib.a.part02 Libraries/libiPhone-lib.a.part03 Libraries/libiPhone-lib.a.part04 Libraries/libiPhone-lib.a.part05 > Libraries/libiPhone-lib.a
-          echo "Reassembling libil2cpp.a..."
-          cat Libraries/libil2cpp.a.part01 Libraries/libil2cpp.a.part02 > Libraries/libil2cpp.a
-          ls -lh Libraries/*.a
+          set -euo pipefail
+          RUNTIME="Frameworks/UnityRuntime.framework/UnityRuntime"
+          cat "${RUNTIME}.part"* > "$RUNTIME"
+          chmod +x "$RUNTIME"
+          ls -lh "$RUNTIME"
 
-      - name: Build Xcode Project (Unsigned)
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build unsigned app
         run: |
-          xcodebuild -version
-          xcodebuild -project Unity-iPhone.xcodeproj \
-                     -scheme Unity-iPhone \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     -derivedDataPath build \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGN_IDENTITY="" \
-                     build
+          set -o pipefail
+          xcodebuild \
+            -project Unity-iPhone.xcodeproj \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ENABLE_BITCODE=NO \
+            clean build | tee "$RUNNER_TEMP/xcodebuild.log"
 
       - name: Package IPA
         run: |
-          mkdir -p Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)
-          test -n "$APP_PATH"
-          cp -R "$APP_PATH" Payload/
-          zip -r thegioihaitac.ipa Payload
+          set -euo pipefail
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -type d -name '*.app' -print -quit)
 
-      - name: Upload IPA Artifact
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app bundle was produced."
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/ipa/Payload/"
+          cd "$RUNNER_TEMP/ipa"
+          ditto -c -k --sequesterRsrc --keepParent Payload thegioihaitac.ipa
+
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: thegioihaitac-IPA
-          path: thegioihaitac.ipa
-          retention-days: 14
+          path: ${{ runner.temp }}/ipa/thegioihaitac.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ${{ runner.temp }}/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -16,10 +16,6 @@ namespace vm
 {
     Il2CppAsyncResult* ThreadPoolMs::DelegateBeginInvoke(Il2CppDelegate* delegate, void** params, Il2CppDelegate* asyncCallback, Il2CppObject* state)
     {
-#if IL2CPP_TINY
-        IL2CPP_ASSERT(0 && "ThreadPoolMs::DelegateBeginInvoke should not be called with the Tiny profile.");
-        return NULL;
-#else
         int numParams = delegate->method->parameters_count;
         il2cpp::utils::dynamic_array<void*> newParams(numParams + 2);
         for (int i = 0; i < numParams; ++i)
@@ -29,15 +25,10 @@ namespace vm
         newParams[numParams + 1] = state;
 
         return threadpool_ms_begin_invoke(il2cpp::vm::Domain::GetCurrent(), (Il2CppObject*)delegate, const_cast<MethodInfo*>(delegate->method), newParams.data());
-#endif
     }
 
     Il2CppObject* ThreadPoolMs::DelegateEndInvoke(Il2CppAsyncResult* asyncResult, void **out_args)
     {
-#if IL2CPP_TINY
-        IL2CPP_ASSERT(0 && "ThreadPoolMs::DelegateEndInvoke should not be called with the Tiny profile.");
-        return NULL;
-#else
         Il2CppArray *arrayOutArgs;
         Il2CppObject *exc, *retVal;
 
@@ -67,7 +58,7 @@ namespace vm
                     IL2CPP_ASSERT(paramClass->native_size > 0 && "EndInvoke: Invalid native_size found when trying to copy a value type in the out_args.");
 
                     // NOTE(gab): in case of value types, we need to copy the data over.
-                    memcpy(out_args[arrayOutArgsIndex], il2cpp::vm::Object::Unbox((Il2CppObject*)outArgsPtr[arrayOutArgsIndex]), paramClass->native_size);
+                    memcpy(out_args[arrayOutArgsIndex], il2cpp::vm::Object::GetRawData((Il2CppObject*)outArgsPtr[arrayOutArgsIndex]), paramClass->native_size);
                 }
                 else
                 {
@@ -78,7 +69,6 @@ namespace vm
         }
 
         return retVal;
-#endif
     }
 
     Il2CppObject* ThreadPoolMs::MessageInvoke(Il2CppObject *target, Il2CppMethodMessage *msg, Il2CppObject **exc, Il2CppArray **out_args)

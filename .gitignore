@@ -1,33 +1,6 @@
-# OS generated files
 .DS_Store
-Thumbs.db
-
-# Xcode
 /build/
-*.xcodeproj/*
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata/
-!*.xcodeproj/xcshareddata/xcschemes/
-*.xcworkspace/*
-DerivedData/
-*.moved-aside
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
+/DerivedData/
+*.xcuserstate
 xcuserdata/
-
-# IPA and build outputs
-*.ipa
-*.app
-*.zip
-*.dSYM.zip
-
-# Large static libraries (split into .part* files <= 40MB)
-Libraries/libiPhone-lib.a
-Libraries/libil2cpp.a
-
+Frameworks/UnityRuntime.framework/UnityRuntime

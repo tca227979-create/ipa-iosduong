@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if !IL2CPP_THREADS_STD && IL2CPP_THREADS_PTHREAD && !RUNTIME_TINY
+#if !IL2CPP_THREADS_STD && IL2CPP_THREADS_PTHREAD
 
 #include <limits>
 #include <unistd.h>
@@ -12,6 +12,7 @@
 #if IL2CPP_TARGET_LINUX
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <signal.h>
 #endif
 
 #include "ThreadImpl.h"
@@ -21,15 +22,21 @@ namespace il2cpp
 {
 namespace os
 {
-/// An Event that we never signal. This is used for sleeping threads in an alertable state. They
-/// simply wait on this object with the sleep timer as the timeout. This way we don't need a separate
-/// codepath for implementing sleep logic.
-    static Event s_ThreadSleepObject;
-
-
 #define ASSERT_CALLED_ON_CURRENT_THREAD \
     IL2CPP_ASSERT(pthread_equal (pthread_self (), m_Handle) && "Must be called on current thread!");
 
+    static Event* s_ThreadSleepObject = nullptr;
+
+    void ThreadImpl::AllocateStaticData()
+    {
+        s_ThreadSleepObject = new Event();
+    }
+
+    void ThreadImpl::FreeStaticData()
+    {
+        delete s_ThreadSleepObject;
+        s_ThreadSleepObject = nullptr;
+    }
 
     ThreadImpl::ThreadImpl()
         : m_Handle(0)
@@ -139,7 +146,8 @@ namespace os
 #if IL2CPP_TARGET_DARWIN
         pthread_setname_np(name);
 #elif IL2CPP_TARGET_LINUX || IL2CPP_TARGET_ANDROID || IL2CPP_ENABLE_PLATFORM_THREAD_RENAME
-        if (pthread_setname_np(m_Handle, name) == ERANGE)
+        int err = pthread_setname_np(m_Handle, name);
+        if (err == ERANGE || err == E2BIG)
         {
             char buf[16]; // TASK_COMM_LEN=16
             strncpy(buf, name, sizeof(buf));
@@ -162,7 +170,7 @@ namespace os
 
     int ThreadImpl::GetMaxStackSize()
     {
-#if IL2CPP_TARGET_DARWIN || IL2CPP_TARGET_LINUX
+#if IL2CPP_TARGET_DARWIN || IL2CPP_TARGET_LINUX || IL2CPP_ENABLE_PLATFORM_MAX_STACKSIZE
         struct rlimit lim;
 
         /* If getrlimit fails, we don't enforce any limits. */
@@ -246,7 +254,11 @@ namespace os
 
     void ThreadImpl::Sleep(uint32_t milliseconds, bool interruptible)
     {
-        s_ThreadSleepObject.Wait(milliseconds, interruptible);
+        /// An Event that we never signal. This is used for sleeping threads in an alertable state. They
+        /// simply wait on this object with the sleep timer as the timeout. This way we don't need a separate
+        /// codepath for implementing sleep logic.
+
+        s_ThreadSleepObject->Wait(milliseconds, interruptible);
     }
 
     uint64_t ThreadImpl::CurrentThreadId()

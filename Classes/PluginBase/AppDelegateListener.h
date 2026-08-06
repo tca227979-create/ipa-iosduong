@@ -24,16 +24,25 @@
 // these are just hooks to existing notifications
 - (void)applicationDidReceiveMemoryWarning:(NSNotification*)notification;
 - (void)applicationSignificantTimeChange:(NSNotification*)notification;
-- (void)applicationWillChangeStatusBarFrame:(NSNotification*)notification;
-- (void)applicationWillChangeStatusBarOrientation:(NSNotification*)notification;
 @end
 
+#ifdef __cplusplus
+// these two function have C++ linkage, don't expose them to Objective-C
 void UnityRegisterAppDelegateListener(id<AppDelegateListener> obj);
 void UnityUnregisterAppDelegateListener(id<AppDelegateListener> obj);
 
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityDidRegisterForRemoteNotificationsWithDeviceToken;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityDidFailToRegisterForRemoteNotificationsWithError;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityDidReceiveRemoteNotification;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityOnOpenURL;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityWillFinishLaunchingWithOptions;
-extern "C" __attribute__((visibility("default"))) NSString* const kUnityHandleEventsForBackgroundURLSession;
+
+extern "C"
+{
+#endif
+
+extern __attribute__((visibility("default"))) NSString* const kUnityDidRegisterForRemoteNotificationsWithDeviceToken;
+extern __attribute__((visibility("default"))) NSString* const kUnityDidFailToRegisterForRemoteNotificationsWithError;
+extern __attribute__((visibility("default"))) NSString* const kUnityDidReceiveRemoteNotification;
+extern __attribute__((visibility("default"))) NSString* const kUnityOnOpenURL;
+extern __attribute__((visibility("default"))) NSString* const kUnityWillFinishLaunchingWithOptions;
+extern __attribute__((visibility("default"))) NSString* const kUnityHandleEventsForBackgroundURLSession;
+
+#ifdef __cplusplus
+}
+#endif

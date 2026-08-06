@@ -1,12 +1,14 @@
 #include "il2cpp-config.h"
 #include "Finally.h"
 #include "vm/Exception.h"
+#include "vm/Thread.h"
 
 NORETURN void il2cpp::utils::RethrowException(Il2CppException* exception)
 {
-#if !RUNTIME_TINY
     vm::Exception::Rethrow(exception);
-#else
-    tiny::vm::Exception::Raise(exception);
-#endif
+}
+
+NORETURN void il2cpp::utils::ThrowNativeThreadAbortException()
+{
+    vm::Thread::ThrowNativeThreadAbortException();
 }

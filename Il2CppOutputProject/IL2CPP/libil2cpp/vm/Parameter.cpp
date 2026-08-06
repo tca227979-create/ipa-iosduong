@@ -12,10 +12,10 @@ namespace il2cpp
 {
 namespace vm
 {
-    Il2CppObject* Parameter::GetDefaultParameterValueObject(const MethodInfo* method, int32_t parameterPosition, bool* isExplicitySetNullDefaultValue)
+    Il2CppObject* Parameter::GetDefaultParameterValueObject(const MethodInfo* method, int32_t parameterPosition, bool* isExplicitlySetNullDefaultValue)
     {
         const Il2CppType* typeOfDefaultValue;
-        const char* data = Method::GetParameterDefaultValue(method, parameterPosition, &typeOfDefaultValue, isExplicitySetNullDefaultValue);
+        const char* data = Method::GetParameterDefaultValue(method, parameterPosition, &typeOfDefaultValue, isExplicitlySetNullDefaultValue);
         if (data == NULL)
             return NULL;
 
@@ -25,7 +25,7 @@ namespace vm
             if (il2cpp::vm::Class::IsNullable(parameterType))
             {
                 parameterType = il2cpp::vm::Class::GetNullableArgument(parameterType);
-                typeOfDefaultValue = &parameterType->byval_arg;
+                typeOfDefaultValue = il2cpp::vm::Class::IsEnum(parameterType) ? il2cpp::vm::Class::GetEnumBaseType(parameterType) : &parameterType->byval_arg;
             }
 
             Class::SetupFields(parameterType);

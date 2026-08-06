@@ -7,6 +7,7 @@
 #include "os/CrashHelpers.h"
 #include "os/Time.h"
 #include "os/Environment.h"
+#include "os/Memory.h"
 
 #include "vm/Array.h"
 #include "vm/Class.h"
@@ -14,12 +15,6 @@
 #include "vm/Runtime.h"
 #include "vm/String.h"
 #include "vm/Exception.h"
-
-#if IL2CPP_TINY_DEBUGGER
-#include "os/CrashHelpers.h"
-#include "vm/StackTrace.h"
-#include "utils/Logging.h"
-#endif
 
 #include "utils/PathUtils.h"
 #include "utils/StringUtils.h"
@@ -74,12 +69,12 @@ namespace System
 
     int32_t Environment::get_TickCount()
     {
-        return il2cpp::os::Time::GetTicksMillisecondsMonotonic();
+        return (int32_t)il2cpp::os::Time::GetTicksMillisecondsMonotonic();
     }
 
     int32_t Environment::GetPageSize()
     {
-        return IL2CPP_PAGE_SIZE;
+        return il2cpp::os::Memory::GetPageSize();
     }
 
     int32_t Environment::get_Platform()
@@ -229,20 +224,6 @@ namespace System
     {
         vm::Runtime::SetExitCode(value);
     }
-
-#if IL2CPP_TINY_DEBUGGER
-    Il2CppString* Environment::GetStackTrace_internal()
-    {
-        const char* stackTrace = vm::StackTrace::GetStackTrace();
-        return vm::String::NewLen(stackTrace, (uint32_t)strlen(stackTrace));
-    }
-
-    void Environment::FailFast_internal(Il2CppString* message)
-    {
-        il2cpp::vm::Runtime::FailFast(il2cpp::utils::StringUtils::Utf16ToUtf8(message->chars, message->length));
-    }
-
-#endif
 } /* namespace System */
 } /* namespace mscorlib */
 } /* namespace icalls */

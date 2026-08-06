@@ -47,8 +47,7 @@ static double GetTimeInSeconds()
     void (^addKey)(NSString *keyName, UIKeyModifierFlags modifierFlags) = ^(NSString *keyName, UIKeyModifierFlags modifierFlags)
     {
         UIKeyCommand* command = [UIKeyCommand keyCommandWithInput: keyName modifierFlags: modifierFlags action: @selector(handleCommand:)];
-        if (@available(iOS 15.0, tvOS 15.0, *))
-            command.wantsPriorityOverSystemBehavior = YES;
+        command.wantsPriorityOverSystemBehavior = YES;
         [commands addObject: command];
     };
 
@@ -97,7 +96,8 @@ static double GetTimeInSeconds()
 - (NSArray*)keyCommands
 {
     //keyCommands take control of buttons over UITextView, that's why need to return nil if text input field is active or we have an external keyboard attached AND a first responder
-    if ([[KeyboardDelegate Instance] status] == Visible || ([[KeyboardDelegate Instance] hasExternalKeyboard] && [self hasFirstResponderInHeirachy: UnityGetGLView()]))
+    KeyboardDelegate* kbdDelegate = [KeyboardDelegate Instance];
+    if (kbdDelegate.status == kUnityKeyboardStatusVisible || (kbdDelegate.hasExternalKeyboard && [self hasFirstResponderInHeirachy: UnityGetGLView()]))
         return nil;
 
     if (keyboardCommands == nil)

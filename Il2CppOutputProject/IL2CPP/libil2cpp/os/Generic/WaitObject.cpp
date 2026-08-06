@@ -1,6 +1,6 @@
 #include "il2cpp-config.h"
 
-#if (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32) && !RUNTIME_TINY
+#if (IL2CPP_THREADS_PTHREAD || IL2CPP_THREADS_WIN32)
 
 #include "WaitObject.h"
 #include "os/Time.h"
@@ -70,10 +70,8 @@ namespace os
 
         ThreadImpl* currentThread = ThreadImpl::GetCurrentThread();
 
-        // Do up-front check about pending APC except this is a zero-timeout
-        // wait (i.e. a wait that is never supposed to block and thus go into
-        // an interruptible state).
-        if (interruptible && timeoutMS != 0)
+        // Do up-front check about pending APC
+        if (interruptible)
             currentThread->CheckForUserAPCAndHandle();
 
         // Lock object. We release this mutex during waiting.
@@ -242,7 +240,7 @@ namespace os
         return ret;
     }
 
-    void WaitObject::WakeupThreads(bool wakeupOneThread)
+    void WaitObject::WakeupThreads(bool wakeupOneThread, bool lifo)
     {
         // Wake up threads.
         // We do this by iterating the waiters list and check if the owner (the semaphore, event or mutex) matches 'this'
@@ -252,9 +250,22 @@ namespace os
         IL2CPP_ASSERT(m_Mutex.TryAcquire() == false);
 
         int threadsWaiting = (int)m_WaitingThreads.size();
-        int threadsNotified = 0;
 
-        for (int i = 0; i < threadsWaiting; i++)
+        int start, end, step;
+        if (lifo)
+        {
+            start = threadsWaiting - 1;
+            end = -1;
+            step = -1;
+        }
+        else
+        {
+            start = 0;
+            end = threadsWaiting;
+            step = 1;
+        }
+
+        for (int i = start; i != end; i += step)
         {
             SThreadPairPosix* object = &m_WaitingThreads[i];
 

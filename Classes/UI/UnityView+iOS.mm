@@ -4,8 +4,6 @@
 #import "UnityAppController+Rendering.h"
 #include "OrientationSupport.h"
 
-extern bool _unityAppReady;
-
 @interface UnityView ()
 @property (nonatomic, readwrite) ScreenOrientation contentOrientation;
 @end
@@ -31,18 +29,25 @@ extern bool _unityAppReady;
 
 - (void)didRotate
 {
-    if (_shouldRecreateView)
+    // if we are using metal display link we will delay actual unity-side resizing to happen before rendering
+    if (_shouldRecreateView && !GetAppController().unityUsesMetalDisplayLink)
     {
+        // recreateRenderingSurface expects layer's drawableSize to be set to proper value
+        //   and updateLayerDrawableSizeFromBounds does exactly that
+        // note that normally we go through recreateRenderingSurfaceIfNeeded
+        //   which does call updateLayerDrawableSizeFromBounds
+        [self updateLayerDrawableSizeFromBounds];
+        [self updateUnityBackbufferSize];
         [self recreateRenderingSurface];
     }
 
     _viewIsRotating = NO;
 }
 
-- (void)touchesBegan:(NSSet*)touches withEvent:(UIEvent*)event      { UnitySendTouchesBegin(touches, event); }
-- (void)touchesEnded:(NSSet*)touches withEvent:(UIEvent*)event      { UnitySendTouchesEnded(touches, event); }
-- (void)touchesCancelled:(NSSet*)touches withEvent:(UIEvent*)event  { UnitySendTouchesCancelled(touches, event); }
-- (void)touchesMoved:(NSSet*)touches withEvent:(UIEvent*)event      { UnitySendTouchesMoved(touches, event); }
+- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event      { UnitySendTouches(UITouchPhaseBegan, touches, event); }
+- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event      { UnitySendTouches(UITouchPhaseEnded, touches, event); }
+- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event  { UnitySendTouches(UITouchPhaseCancelled, touches, event); }
+- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event      { UnitySendTouches(UITouchPhaseMoved, touches, event); }
 
 @end
 

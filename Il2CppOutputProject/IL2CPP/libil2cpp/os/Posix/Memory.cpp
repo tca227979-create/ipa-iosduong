@@ -1,10 +1,11 @@
 #include "il2cpp-config.h"
 
-#if IL2CPP_TARGET_POSIX || IL2CPP_TARGET_N3DS && !RUNTIME_TINY
+#if IL2CPP_TARGET_POSIX || IL2CPP_TARGET_N3DS
 
 #include "os/Memory.h"
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 namespace il2cpp
 {
@@ -41,6 +42,13 @@ namespace Memory
     void AlignedFree(void* memory)
     {
         free(memory);
+    }
+
+    int32_t GetPageSize()
+    {
+        static int64_t page_size = getpagesize();
+
+        return (int32_t)page_size;
     }
 }
 }
