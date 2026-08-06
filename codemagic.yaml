@@ -27,6 +27,6 @@ workflows:
         script: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/Unity-iPhone.app Payload/
-          cd Payload && zip -r ../Unity-iPhone.ipa Unity-iPhone.app
+          cd Payload && zip -r ../thegioihaitac.ipa Unity-iPhone.app
     artifacts:
-      - Unity-iPhone.ipa
+      - thegioihaitac.ipa

@@ -42,11 +42,11 @@ jobs:
           APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)
           test -n "$APP_PATH"
           cp -R "$APP_PATH" Payload/
-          zip -r Unity-iPhone.ipa Payload
+          zip -r thegioihaitac.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Unity-iPhone-IPA
-          path: Unity-iPhone.ipa
+          name: thegioihaitac-IPA
+          path: thegioihaitac.ipa
           retention-days: 14
